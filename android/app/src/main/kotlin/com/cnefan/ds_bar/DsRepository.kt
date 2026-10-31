@@ -27,7 +27,12 @@ class DsRepository(private val context: Context) {
 
     /** 刷新并落盘；返回快照 JSON。 */
     fun refresh(): JSONObject {
-        val snapshot = if (prefs.demoMode) DemoData.snapshot() else fetchSnapshot()
+        val snapshot = try {
+            if (prefs.demoMode) DemoData.snapshot() else fetchSnapshot()
+        } catch (t: Throwable) {
+            android.util.Log.e("DsBarRefresh", "snapshot build failed", t)
+            throw t
+        }
         prefs.cachedSnapshot = snapshot.toString()
         prefs.lastRefreshAt = System.currentTimeMillis()
         return snapshot
