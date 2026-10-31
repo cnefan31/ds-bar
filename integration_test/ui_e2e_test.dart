@@ -1,4 +1,3 @@
-import 'package:ds_bar/src/models.dart';
 import 'package:ds_bar/src/native_bridge.dart';
 import 'package:ds_bar/src/ui/app.dart';
 import 'package:flutter/material.dart';

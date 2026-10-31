@@ -8,10 +8,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import android.widget.RemoteViews
 import org.json.JSONObject
 
 /**
@@ -20,7 +22,23 @@ import org.json.JSONObject
 object BalanceNotification {
 
     const val CHANNEL_ID = "ds_bar_balance"
-    const val NOTIFICATION_ID = 1001
+    /**
+     * 通知 id。
+     *
+     * 曾用 1001，但在本机被 EMUI 标记为 persist 后反复清理（日志：add 后即 remove，
+     * 且仅该 id 受影响、同通道其它 id 正常）。改用 1101，与诊断验证通过的 id 一致。
+     */
+    const val NOTIFICATION_ID = 1101
+
+    private const val L_COLLAPSED = R.layout.notification_collapsed
+    private const val L_COLLAPSED_LIGHT = R.layout.notification_collapsed_light
+    private const val L_EXPANDED = R.layout.notification_expanded
+    private const val L_EXPANDED_LIGHT = R.layout.notification_expanded_light
+
+    /** 深浅色判定：读系统 uiMode，两套布局各自带死文字色，避免运行时改色。 */
+    private fun isNight(context: Context): Boolean =
+        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -56,15 +74,54 @@ object BalanceNotification {
         return PendingIntent.getActivity(context, 0, intent, flags)
     }
 
+    private fun bindCollapsed(rv: RemoteViews, c: NotificationText.Content) {
+        rv.setTextViewText(R.id.n_balance, c.title)
+        rv.setTextViewText(R.id.n_today, c.text)
+        rv.setViewVisibility(
+            R.id.n_flag,
+            if (c.statusHint.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+        )
+    }
+
+    private fun bindExpanded(rv: RemoteViews, c: NotificationText.Content) {
+        rv.setTextViewText(R.id.n_balance, c.title)
+        rv.setTextViewText(R.id.n_today, c.text)
+        rv.setTextViewText(R.id.n_month_cost, c.monthCost)
+        rv.setTextViewText(R.id.n_month_tokens, c.monthTokens)
+        rv.setTextViewText(R.id.n_month_requests, c.monthRequests)
+        rv.setTextViewText(R.id.n_cache_rate, c.cacheRate)
+        rv.setTextViewText(R.id.n_updated, c.updated)
+        if (c.chip.isEmpty()) {
+            rv.setViewVisibility(R.id.n_chip, android.view.View.GONE)
+        } else {
+            rv.setViewVisibility(R.id.n_chip, android.view.View.VISIBLE)
+            rv.setTextViewText(R.id.n_chip, c.chip)
+        }
+    }
+
     fun build(context: Context, snapshot: JSONObject?): Notification {
         ensureChannel(context)
         val content = NotificationText.build(snapshot)
+
+        val light = !isNight(context)
+        val collapsed = RemoteViews(
+            context.packageName,
+            if (light) L_COLLAPSED_LIGHT else L_COLLAPSED
+        )
+        val expanded = RemoteViews(
+            context.packageName,
+            if (light) L_EXPANDED_LIGHT else L_EXPANDED
+        )
+        bindCollapsed(collapsed, content)
+        bindExpanded(expanded, content)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_balance)
             .setContentTitle(content.title)
             .setContentText(content.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(content.big))
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(collapsed)
+            .setCustomBigContentView(expanded)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
@@ -72,22 +129,21 @@ object BalanceNotification {
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(contentIntent(context))
 
-        val refreshIntent = Intent(context, RefreshActionReceiver::class.java).apply {
-            action = RefreshActionReceiver.ACTION_REFRESH
-        }
-        val refreshFlags = PendingIntent.FLAG_UPDATE_CURRENT or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
-        val refreshPending = PendingIntent.getBroadcast(context, 1, refreshIntent, refreshFlags)
-        builder.addAction(0, "刷新", refreshPending)
-
+        // 通知栏不再放「刷新」按钮：点整卡进 App，手动刷新入口保留在磁贴与 App 内。
         return builder.build()
     }
 
     fun show(context: Context, snapshot: JSONObject?) {
         ensureChannel(context)
-        if (!canNotify(context)) return
-        runCatching {
+        if (!canNotify(context)) {
+            android.util.Log.w("DsBarNotify", "skip: canNotify=false")
+            return
+        }
+        try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, build(context, snapshot))
+            android.util.Log.i("DsBarNotify", "notified id=$NOTIFICATION_ID")
+        } catch (t: Throwable) {
+            android.util.Log.e("DsBarNotify", "notify threw", t)
         }
     }
 

@@ -18,7 +18,14 @@ object NotificationText {
         val text: String,
         val big: String,
         /** 供无障碍与排障：出现异常时的简短原因，正常为空。 */
-        val statusHint: String = ""
+        val statusHint: String = "",
+        // 以下字段供自定义布局直接绑定，与 big 同源，避免布局层二次解析
+        val monthCost: String = "",
+        val monthTokens: String = "",
+        val monthRequests: String = "",
+        val cacheRate: String = "",
+        val updated: String = "",
+        val chip: String = ""
     )
 
     private fun statusOf(snapshot: JSONObject): String {
@@ -128,6 +135,22 @@ object NotificationText {
             append(timeLine)
         }
 
-        return Content(title = title, text = text, big = big, statusHint = status)
+        val chipText = when {
+            demo -> "演示数据"
+            status.isNotEmpty() -> status
+            else -> ""
+        }
+        return Content(
+            title = title,
+            text = text,
+            big = big,
+            statusHint = status,
+            monthCost = sym + Fmt.money(monthCost),
+            monthTokens = Fmt.tokens(monthTokens),
+            monthRequests = Fmt.count(monthReq),
+            cacheRate = Fmt.percent(rate),
+            updated = timeLine,
+            chip = chipText
+        )
     }
 }

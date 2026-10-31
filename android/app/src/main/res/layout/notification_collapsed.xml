@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  折叠态：一行两个数，无自明标题。
+  注意：RemoteViews 只支持白名单控件，<View> 不在白名单内会导致整条通知被
+  部分 OEM（如 EMUI）丢弃，因此分隔线与状态点一律用 ImageView。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/n_balance"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:textColor="#F4F4F6"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="¥0.00" />
+
+    <ImageView
+        android:layout_width="1dp"
+        android:layout_height="14dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:background="#313236"
+        android:scaleType="fitXY"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/n_today"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="13sp"
+        android:textColor="#B4B5BA"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="今日 —" />
+
+    <ImageView
+        android:id="@+id/n_flag"
+        android:layout_width="5dp"
+        android:layout_height="5dp"
+        android:layout_marginStart="6dp"
+        android:background="#C08A2B"
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+</LinearLayout>

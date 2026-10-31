@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  展开态：主金额 → 指标带 → 脚注。
+  所有分隔线用 ImageView（RemoteViews 白名单不含 <View>）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="true">
+
+        <TextView
+            android:id="@+id/n_balance"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="25sp"
+            android:textStyle="bold"
+            android:textColor="#F4F4F6"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="¥0.00" />
+
+        <TextView
+            android:id="@+id/n_today"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="#B4B5BA"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="今日 —" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="8dp"
+        android:background="#313236"
+        android:scaleType="fitXY"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingTop="7dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="9.5sp"
+                android:textColor="#87888F"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="本月消费" />
+            <TextView
+                android:id="@+id/n_month_cost"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#F4F4F6"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="—" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="9.5sp"
+                android:textColor="#87888F"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="TOKEN" />
+            <TextView
+                android:id="@+id/n_month_tokens"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#F4F4F6"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="—" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="9.5sp"
+                android:textColor="#87888F"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="请求" />
+            <TextView
+                android:id="@+id/n_month_requests"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#F4F4F6"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="—" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="9.5sp"
+                android:textColor="#87888F"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="命中率" />
+            <TextView
+                android:id="@+id/n_cache_rate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#F4F4F6"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:text="—" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="7dp">
+
+        <TextView
+            android:id="@+id/n_updated"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="10sp"
+            android:textColor="#87888F"
+            android:includeFontPadding="false"
+            android:singleLine="true"
+            android:text="未同步" />
+
+        <TextView
+            android:id="@+id/n_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:textSize="10sp"
+            android:textColor="#C08A2B"
+            android:includeFontPadding="false"
+            android:singleLine="true"
+            android:visibility="gone"
+            android:text="演示数据" />
+    </LinearLayout>
+</LinearLayout>
