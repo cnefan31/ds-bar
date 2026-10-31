@@ -22,6 +22,12 @@ android {
         versionName = flutter.versionName
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     buildTypes {
         release {
             // 正式发布请替换为自己的签名配置；当前沿用 debug 签名以便本地安装。
@@ -47,4 +53,14 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // JVM 单测里替代 Android 的 org.json 桩实现。
     testImplementation("org.json:json:20240303")
+    // 真实 inflate 通知布局，把「布局能否被 RemoteViews 加载」变成可回归的测试。
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    testImplementation("androidx.test:core:1.6.1")
 }
+
+// Robolectric 需要 includeAndroidResources，而它会与 Flutter 的资产合并任务
+// 产生隐式依赖冲突（Gradle 9 会直接报错）。显式声明依赖即可。
+tasks.matching { it.name.startsWith("package") && it.name.contains("UnitTestForUnitTest") }
+    .configureEach {
+        dependsOn(tasks.matching { it.name.startsWith("copyFlutterAssets") })
+    }
