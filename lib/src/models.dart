@@ -343,13 +343,17 @@ class ConfiguredKey {
   final String id;
   final String name;
 
-  const ConfiguredKey({required this.id, required this.name});
+  /// 打码后的 key 尾号，供核对是哪一把。明文不进入 Dart 层。
+  final String masked;
+
+  const ConfiguredKey({required this.id, required this.name, this.masked = ''});
 
   factory ConfiguredKey.fromJson(dynamic raw) {
     final json = Json.map(raw) ?? const {};
     return ConfiguredKey(
       id: Json.str(json['id']),
       name: Json.str(json['name'], 'key'),
+      masked: Json.str(json['masked']),
     );
   }
 
@@ -395,4 +399,71 @@ class Json {
     }
     return fallback;
   }
+}
+
+/// 「测试连接」单项结果。
+class ProbeItem {
+  final String target;
+  final String label;
+  final bool ok;
+  final String detail;
+  final String code;
+
+  const ProbeItem({
+    required this.target,
+    required this.label,
+    this.ok = false,
+    this.detail = '',
+    this.code = '',
+  });
+
+  factory ProbeItem.fromJson(dynamic raw) {
+    final json = Json.map(raw) ?? const {};
+    return ProbeItem(
+      target: Json.str(json['target']),
+      label: Json.str(json['label']),
+      ok: Json.flag(json['ok']),
+      detail: Json.str(json['detail']),
+      code: Json.str(json['code']),
+    );
+  }
+
+  /// 面向用户的中文解释。只对失败项有意义。
+  String get hint => switch (code) {
+        'missing_credential' => '尚未配置',
+        'auth_failed' => 'Key 无效或已撤销',
+        'platform_auth' => '登录态过期，重新复制 userToken',
+        'platform_rate_limited' => '平台限流，稍后重试',
+        'platform_failed' => '平台接口异常，可能需补 Cookie',
+        'timeout' => '请求超时，检查网络',
+        'fetch_failed' => '网络请求失败',
+        _ => '未知问题',
+      };
+}
+
+/// 一次「测试连接」的完整结果。
+class ProbeResult {
+  final List<ProbeItem> items;
+  final DateTime? testedAt;
+  final bool allOk;
+
+  const ProbeResult({
+    this.items = const [],
+    this.testedAt,
+    this.allOk = false,
+  });
+
+  static ProbeResult? fromJson(dynamic raw) {
+    final json = Json.map(raw);
+    if (json == null) return null;
+    final ts = Json.intOr(json['testedAt']);
+    return ProbeResult(
+      items: Json.list(json['items']).map(ProbeItem.fromJson).toList(),
+      testedAt: ts > 0 ? DateTime.fromMillisecondsSinceEpoch(ts) : null,
+      allOk: Json.flag(json['allOk']),
+    );
+  }
+
+  int get okCount => items.where((e) => e.ok).length;
+  int get failCount => items.length - okCount;
 }

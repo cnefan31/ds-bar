@@ -15,6 +15,8 @@ data class ApiKeyEntry(val id: String, val name: String, val key: String) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("name", name)
+        // 打码后的 key 尾号，供设置页核对是哪一把；不泄露明文。
+        .put("masked", masked)
 
     companion object {
         private fun maskTail(key: String) = if (key.length <= 4) "…" else "…" + key.takeLast(4)

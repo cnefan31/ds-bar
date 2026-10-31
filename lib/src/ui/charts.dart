@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../theme.dart';
 
-/// 每日 token 用量柱状图。纯 CustomPainter，无第三方图表依赖。
-class DailyBarChart extends StatelessWidget {
-  const DailyBarChart({
+/// 每日 token 趋势图。纯 CustomPainter，无第三方图表依赖。
+///
+/// 设计规范：柱宽自适应、间距 3、圆角 1.5 仅顶部；
+/// 最新一日实色，其余 42% 透明；三条 hairline 网格。
+class TrendChart extends StatelessWidget {
+  const TrendChart({
     super.key,
     required this.days,
-    this.height = 128,
+    this.height = 76,
     this.showCost = false,
   });
 
@@ -24,56 +27,34 @@ class DailyBarChart extends StatelessWidget {
       return SizedBox(
         height: height,
         child: const Center(
-          child: Text('暂无每日数据', style: TextStyle(fontSize: 12, color: DsColors.inkTertiary)),
+          child: Text(
+            '暂无每日数据',
+            style: TextStyle(fontSize: 11, color: DsColors.inkTertiary),
+          ),
         ),
       );
     }
-    final values = days.map((d) => showCost ? d.cost : d.tokens.toDouble()).toList();
-    final maxValue = values.fold<double>(0, math.max);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: height,
-          child: CustomPaint(
-            painter: _BarPainter(
-              values: values,
-              maxValue: maxValue,
-              dates: days.map((d) => d.date).toList(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              days.first.date.length >= 5 ? days.first.date.substring(5) : days.first.date,
-              style: const TextStyle(fontSize: 10, color: DsColors.inkTertiary),
-            ),
-            Text(
-              days.last.date.length >= 5 ? days.last.date.substring(5) : days.last.date,
-              style: const TextStyle(fontSize: 10, color: DsColors.inkTertiary),
-            ),
-          ],
-        ),
-      ],
+    final values =
+        days.map((d) => showCost ? d.cost : d.tokens.toDouble()).toList();
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        painter: _TrendPainter(values: values),
+        size: Size.infinite,
+      ),
     );
   }
 }
 
-class _BarPainter extends CustomPainter {
-  _BarPainter({required this.values, required this.maxValue, required this.dates});
+class _TrendPainter extends CustomPainter {
+  _TrendPainter({required this.values});
 
   final List<double> values;
-  final double maxValue;
-  final List<String> dates;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty || size.width <= 0) return;
 
-    // 网格线：hairline 三条
     final gridPaint = Paint()
       ..color = DsColors.hairline
       ..strokeWidth = 1;
@@ -82,32 +63,140 @@ class _BarPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final count = values.length;
-    final slot = size.width / count;
-    final barWidth = math.min(slot * 0.62, 18.0);
+    final maxValue = values.fold<double>(0, math.max);
     final safeMax = maxValue <= 0 ? 1.0 : maxValue;
 
-    final barPaint = Paint()..color = DsColors.primary.withValues(alpha: 0.85);
-    final emptyPaint = Paint()..color = DsColors.surface3;
+    final count = values.length;
+    final slot = size.width / count;
+    final barWidth = math.min(slot * 0.72, 16.0);
+    final radius = const Radius.circular(1.5);
 
     for (var i = 0; i < count; i++) {
       final v = values[i];
-      final h = v <= 0 ? 2.0 : math.max(2.0, (v / safeMax) * (size.height - 4));
+      final isLast = i == count - 1;
+      final h = v <= 0
+          ? 2.0
+          : math.max(2.0, (v / safeMax) * (size.height - 2));
       final left = slot * i + (slot - barWidth) / 2;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(left, size.height - h, barWidth, h),
-        const Radius.circular(2),
+      final paint = Paint()
+        ..color = isLast
+            ? DsColors.primary
+            : DsColors.primary.withValues(alpha: 0.42);
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(left, size.height - h, barWidth, h),
+          topLeft: radius,
+          topRight: radius,
+        ),
+        paint,
       );
-      canvas.drawRRect(rect, v <= 0 ? emptyPaint : barPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _BarPainter old) =>
-      old.values != values || old.maxValue != maxValue;
+  bool shouldRepaint(covariant _TrendPainter old) => old.values != values;
 }
 
-/// 用量构成条：缓存命中 / 缓存未命中 / 输出，三段比例条。
+/// 趋势图容器：标题行 + 图 + 两端日期。
+class TrendBlock extends StatelessWidget {
+  const TrendBlock({
+    super.key,
+    required this.days,
+    required this.title,
+    this.note,
+  });
+
+  final List<DayUsage> days;
+  final String title;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 11, color: DsColors.inkSubtle),
+            ),
+            const Spacer(),
+            if (note != null)
+              Text(
+                note!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: DsColors.inkTertiary,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TrendChart(days: days),
+        if (days.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_short(days.first.date), style: _axisStyle),
+              Text(_short(days.last.date), style: _axisStyle),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  static const _axisStyle = TextStyle(fontSize: 9, color: DsColors.inkTertiary);
+
+  static String _short(String date) =>
+      date.length >= 10 ? date.substring(5) : date;
+}
+
+/// 横向占比条：用于模型或 key 的份额对比。
+///
+/// 单个模型时退化为一条实色，不画空心比例。
+class ShareBar extends StatelessWidget {
+  const ShareBar({super.key, required this.segments, this.height = 8});
+
+  /// (权重, 颜色) 列表。权重应已归一或可相对比较。
+  final List<(double, Color)> segments;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = segments.fold<double>(0, (s, e) => s + e.$1);
+    if (total <= 0) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: DsColors.surface3,
+          borderRadius: BorderRadius.circular(height / 2),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height / 2),
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            for (final (weight, color) in segments)
+              if (weight > 0)
+                Expanded(
+                  flex: math.max(1, (weight / total * 1000).round()),
+                  child: ColoredBox(color: color),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 用量构成条：缓存命中 / 未命中 / 输出，三段比例。
 class CompositionBar extends StatelessWidget {
   const CompositionBar({super.key, required this.bucket});
 
@@ -115,66 +204,14 @@ class CompositionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = bucket.tokens;
-    if (total <= 0) {
-      return Container(
-        height: 6,
-        decoration: BoxDecoration(
-          color: DsColors.surface3,
-          borderRadius: BorderRadius.circular(3),
-        ),
-      );
-    }
-    final segments = <(double, Color, String)>[
-      (bucket.cacheHit / total, DsColors.primary, '缓存命中'),
-      (bucket.cacheMiss / total, DsColors.warning, '缓存未命中'),
-      (bucket.output / total, DsColors.success, '输出'),
+    final segments = <(double, Color)>[
+      (bucket.cacheHit.toDouble(), DsColors.primary),
+      (bucket.cacheMiss.toDouble(), DsColors.warning),
+      (bucket.output.toDouble(), DsColors.success),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: SizedBox(
-            height: 6,
-            child: Row(
-              children: segments
-                  .where((s) => s.$1 > 0)
-                  .map(
-                    (s) => Expanded(
-                      flex: math.max(1, (s.$1 * 1000).round()),
-                      child: Container(color: s.$2),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 9),
-        Wrap(
-          spacing: 14,
-          runSpacing: 6,
-          children: segments
-              .map(
-                (s) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(color: s.$2, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      s.$3,
-                      style: const TextStyle(fontSize: 11, color: DsColors.inkSubtle),
-                    ),
-                  ],
-                ),
-              )
-              .toList(),
-        ),
-      ],
-    );
+    if (bucket.tokens <= 0) {
+      return ShareBar(segments: const [], height: 6);
+    }
+    return ShareBar(segments: segments, height: 6);
   }
 }

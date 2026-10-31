@@ -154,16 +154,24 @@ void main() {
     expect(find.text('¥0.71'), findsOneWidget); // 今日消费
     expect(find.text('486.0K'), findsOneWidget); // 今日 tokens
     expect(find.text('128'), findsOneWidget); // 今日请求
-    // 本月合计
-    expect(find.text('12.48M'), findsWidgets);
-    expect(find.text('3,640 次请求'), findsOneWidget);
+    // 本月区块注记（请求数与消费合并在一处）
+    expect(find.textContaining('3,640 次'), findsWidgets);
+    // 主视觉：余额三项拆分（无边框主视觉区）
+    expect(find.text('充值'), findsOneWidget);
+    expect(find.text('赠送'), findsOneWidget);
+    expect(find.text('今日已花'), findsOneWidget);
+    // 四段结构的分区标题
+    expect(find.text('今日'), findsOneWidget);
+    expect(find.text('本月'), findsWidgets);
+    expect(find.text('按 Key'), findsOneWidget);
+    expect(find.text('按 Model'), findsOneWidget);
     // 按 key
     expect(find.text('prod-backend'), findsWidgets);
     expect(find.text('dev-local'), findsOneWidget);
-    expect(find.text('7.40M tokens'), findsOneWidget);
+    expect(find.textContaining('7.40M tokens'), findsWidgets);
     // 按模型
     expect(find.text('deepseek-chat'), findsOneWidget);
-    expect(find.text('9.12M tokens · 73.1%'), findsOneWidget);
+    expect(find.textContaining('9.12M tokens'), findsWidgets);
     // key 状态
     expect(find.text('有效'), findsOneWidget);
     expect(find.text('sk-ab…9f2c'), findsOneWidget);
@@ -198,10 +206,10 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('还没有添加 API Key'), findsOneWidget);
-    expect(find.text('--'), findsOneWidget);
-    // 余额拿不到时用「未配置凭据」而不是「余额不足」
-    expect(find.text('未配置凭据'), findsOneWidget);
+    // 首次使用走两步引导，不显示 0 元与空图表
+    expect(find.text('还差两步'), findsOneWidget);
+    expect(find.textContaining('添加 API Key'), findsWidgets);
+    expect(find.textContaining('userToken'), findsWidgets);
     expect(find.text('余额不足'), findsNothing);
   });
 
@@ -228,12 +236,20 @@ void main() {
     await tester.tap(find.byIcon(Icons.tune_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('凭据'), findsOneWidget);
-    expect(find.text('API Keys'), findsOneWidget);
-    expect(find.text('通知栏与磁贴'), findsOneWidget);
-    expect(find.text('刷新'), findsWidgets);
+    // 顶部分区：连接状态
+    expect(find.text('连接状态'), findsOneWidget);
+    expect(find.text('测试连接'), findsOneWidget);
+    // 两段凭据按「解锁什么」拆分
+    expect(find.text('平台会话'), findsOneWidget);
+    expect(find.text('API Key'), findsWidgets);
+    expect(find.text('解锁用量'), findsOneWidget);
+    expect(find.text('解锁余额'), findsOneWidget);
+    // 其余分区
+    expect(find.text('刷新'), findsOneWidget);
+    expect(find.text('通知与磁贴'), findsOneWidget);
     expect(find.text('数据来源'), findsOneWidget);
-    expect(find.text('30 分钟'), findsOneWidget);
+    // 分段控件把 30 分钟高亮出来
+    expect(find.text('30 分钟'), findsWidgets);
     expect(find.textContaining('api.deepseek.com/user/balance'), findsOneWidget);
   });
 }

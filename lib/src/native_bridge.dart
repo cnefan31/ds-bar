@@ -69,6 +69,13 @@ class NativeBridge {
     await _invoke<void>('openUrl', {'url': url});
   }
 
+  /// 逐项测试凭据连通性。原生侧只做只读 GET。
+  Future<ProbeResult?> testConnection() async {
+    final raw = await _invoke<String>('testConnection');
+    if (raw == null || raw.isEmpty) return null;
+    return ProbeResult.fromJson(jsonDecode(raw));
+  }
+
   Future<bool> openQsTileSettings() async {
     final ok = await _invoke<bool>('openQsTileSettings');
     return ok ?? false;

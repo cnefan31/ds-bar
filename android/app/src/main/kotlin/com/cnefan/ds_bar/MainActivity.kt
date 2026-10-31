@@ -93,6 +93,10 @@ class MainActivity : FlutterActivity() {
                         }.onFailure { result.error("open_failed", it.message, null) }
                     }
                 }
+                "testConnection" -> io.execute {
+                    val payload = runCatching { ConnectionProbe.run(applicationContext) }.getOrNull()
+                    runOnUiThread { result.success(payload) }
+                }
                 "openQsTileSettings" -> {
                     val ok = runCatching {
                         startActivity(Intent("android.service.quicksettings.action.QS_TILE_SETTINGS"))

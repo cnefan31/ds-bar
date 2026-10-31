@@ -175,11 +175,76 @@ void main() {
     });
   });
 
+  _probeTests();
+
   group('ApiIssue 提示语', () {
     test('已知错误码映射', () {
       expect(const ApiIssue(code: 'auth_failed', message: '').hint, 'API Key 无效');
       expect(const ApiIssue(code: 'platform_auth', message: '').hint, 'userToken 已过期');
       expect(const ApiIssue(code: 'unknown_thing', message: '').hint, '获取失败');
+    });
+  });
+}
+
+/// 设置页新增能力的解析测试。
+void _probeTests() {
+  group('ProbeResult 解析', () {
+    test('完整结果', () {
+      final r = ProbeResult.fromJson({
+        'allOk': false,
+        'testedAt': 1761900000000,
+        'items': [
+          {'target': 'apiKey', 'label': 'API Key · prod', 'ok': true, 'detail': '200 · ¥42.80'},
+          {'target': 'platform', 'label': '平台 userToken', 'ok': false, 'detail': '401 未授权', 'code': 'platform_auth'},
+        ],
+      });
+      expect(r, isNotNull);
+      expect(r!.items, hasLength(2));
+      expect(r.okCount, 1);
+      expect(r.failCount, 1);
+      expect(r.allOk, isFalse);
+      expect(r.testedAt, DateTime.fromMillisecondsSinceEpoch(1761900000000));
+      expect(r.items[1].code, 'platform_auth');
+    });
+
+    test('失败项给中文解释', () {
+      const auth = ProbeItem(target: 'platform', label: 'x', code: 'platform_auth');
+      expect(auth.hint, contains('过期'));
+      const missing = ProbeItem(target: 'apiKey', label: 'x', code: 'missing_credential');
+      expect(missing.hint, '尚未配置');
+      const unknown = ProbeItem(target: 'x', label: 'x', code: 'zzz');
+      expect(unknown.hint, '未知问题');
+    });
+
+    test('缺字段与类型错乱不抛异常', () {
+      final r = ProbeResult.fromJson({'items': 'notalist'});
+      expect(r, isNotNull);
+      expect(r!.items, isEmpty);
+      expect(r.allOk, isFalse);
+      expect(ProbeResult.fromJson(null), isNull);
+    });
+
+    test('全通过时 allOk 为真', () {
+      final r = ProbeResult.fromJson({
+        'allOk': true,
+        'items': [
+          {'target': 'apiKey', 'label': 'k', 'ok': true, 'detail': '200'},
+        ],
+      });
+      expect(r!.allOk, isTrue);
+      expect(r.failCount, 0);
+    });
+  });
+
+  group('ConfiguredKey 打码', () {
+    test('解析 masked 字段', () {
+      final k = ConfiguredKey.fromJson({'id': 'a', 'name': 'prod', 'masked': 'sk-ab…9f2c'});
+      expect(k.masked, 'sk-ab…9f2c');
+    });
+
+    test('缺 masked 时为空串，不报错', () {
+      final k = ConfiguredKey.fromJson({'id': 'a', 'name': 'prod'});
+      expect(k.masked, '');
     });
   });
 }

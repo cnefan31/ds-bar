@@ -22,6 +22,114 @@ class DsColors {
   static const danger = Color(0xFFE5484D);
 }
 
+/// 字号阶梯。跨级明显（52 → 14 → 10.5），保证一级视觉只有一个。
+class DsText {
+  /// 余额主数字。全页唯一的一级视觉。
+  static const hero = TextStyle(
+    fontSize: 52,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -2.4,
+    height: 1.0,
+    color: DsColors.ink,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// 主数字的币种符号，降一级。
+  static const heroSym = TextStyle(
+    fontSize: 26,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.5,
+    color: DsColors.inkSubtle,
+  );
+
+  /// 空态标题。
+  static const emptyTitle = TextStyle(
+    fontSize: 19,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.4,
+    color: DsColors.ink,
+  );
+
+  /// 指标值（14sp）。
+  static const metric = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.3,
+    color: DsColors.ink,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// 列表主行（12.5sp）。
+  static const rowTitle = TextStyle(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    color: DsColors.ink,
+  );
+
+  /// 列表次行（10.5sp），等宽数字。
+  static const rowSub = TextStyle(
+    fontSize: 10.5,
+    height: 1.5,
+    color: DsColors.inkTertiary,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// 分区标题（11.5sp / 600）。
+  static const section = TextStyle(
+    fontSize: 11.5,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.2,
+    color: DsColors.inkMuted,
+  );
+
+  /// 分区标题旁的灰色注记。
+  static const sectionNote = TextStyle(
+    fontSize: 10.5,
+    color: DsColors.inkTertiary,
+  );
+
+  /// 指标小标签（9.5sp）。
+  static const metricLabel = TextStyle(
+    fontSize: 9.5,
+    letterSpacing: 0.2,
+    color: DsColors.inkTertiary,
+  );
+
+  /// 说明文字（10.5sp）。
+  static const hint = TextStyle(
+    fontSize: 10.5,
+    height: 1.65,
+    color: DsColors.inkTertiary,
+  );
+
+  /// 等宽金额。
+  static const mono = TextStyle(
+    fontFamily: 'monospace',
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+}
+
+/// 间距阶梯。全站只用这几档，避免随手数字。
+class DsSpace {
+  /// 卡片内边距。
+  static const cardPad = EdgeInsets.symmetric(horizontal: 12, vertical: 11);
+
+  /// 屏内容左右边距。
+  static const screenH = 16.0;
+
+  /// 分区标题上间距（标题与上一块的距离）。
+  static const sectionTop = 22.0;
+
+  /// 分区标题下间距（标题与内容块的距离）。
+  static const sectionBottom = 10.0;
+
+  /// 紧邻块之间。
+  static const tight = 8.0;
+
+  /// 常规块之间。
+  static const normal = 14.0;
+}
+
 class DsTheme {
   static ThemeData build() {
     const scheme = ColorScheme.dark(
