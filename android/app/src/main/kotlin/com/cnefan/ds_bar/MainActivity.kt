@@ -15,6 +15,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val prefs = DsPrefs(this)
+        android.util.Log.i("DsBarNotify", "engine configured; notifyEnabled=" + prefs.notifyEnabled +
+            " tileEnabled=" + prefs.tileEnabled + " refresh=" + prefs.refreshMinutes)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -62,11 +64,15 @@ class MainActivity : FlutterActivity() {
                     } else {
                         BalanceNotification.cancel(this)
                     }
-                    if (prefs.tileEnabled) {
+                    // 定时刷新服务于通知与磁贴两者，任一开启就要跑。
+                    // 早期实现只看 tileEnabled，导致「只开通知、关磁贴」时后台不再刷新。
+                    if (prefs.tileEnabled || prefs.notifyEnabled) {
                         RefreshScheduler.schedule(this, prefs.refreshMinutes)
-                        BalanceTileService.requestUpdate(this)
                     } else {
                         RefreshScheduler.cancel(this)
+                    }
+                    if (prefs.tileEnabled) {
+                        BalanceTileService.requestUpdate(this)
                     }
                     result.success(prefs.configJson().toString())
                 }

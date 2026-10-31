@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DS Bar · 主界面重设计</title>
+<style>
+  :root{
+    --page:#f2f2f3;
+    --page-ink:#111113;
+    --page-mid:#58585f;
+    --page-low:#8e8e96;
+    --line:#dcdce0;
+    --panel:#ffffff;
+
+    /* 深色看板：近黑画布 + 逐级提亮表面 */
+    --canvas:#010102;
+    --s1:#0F1011;
+    --s2:#141516;
+    --s3:#18191A;
+    --s4:#191A1B;
+    --hair:#23252A;
+    --hair2:#34343A;
+
+    --ink:#F7F8F8;
+    --muted:#D0D6E0;
+    --subtle:#8A8F98;
+    --tertiary:#62666D;
+
+    --primary:#5E6AD2;
+    --primary-hover:#828FFF;
+    --ok:#27A644;
+    --warn:#D9A03A;
+    --bad:#E5484D;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+
+  body{
+    background:var(--page);color:var(--page-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased
+  }
+
+  .wrap{max-width:1240px;margin:0 auto;padding:44px 28px 96px}
+
+  .head h1{font-size:27px;font-weight:600;letter-spacing:-0.7px}
+  .head .sub{font-size:13px;color:var(--page-mid);margin-top:7px;max-width:620px;line-height:1.6}
+
+  .rule{height:1px;background:var(--line);margin:26px 0 34px}
+
+  .facts{background:#fff;border:1px solid var(--line);border-left:2px solid var(--primary);
+    border-radius:0 10px 10px 0;padding:15px 18px;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .facts b{color:var(--page-ink);font-weight:600}
+  .facts ol{margin:8px 0 0 17px}
+  .facts li{margin-bottom:5px}
+
+  h2.sec{font-size:12px;letter-spacing:1.1px;font-weight:600;color:var(--page-low);
+    margin:46px 0 10px;text-transform:uppercase}
+  h2.sec:first-of-type{margin-top:0}
+  .sec-note{font-size:12px;color:var(--page-low);margin:0 0 18px;line-height:1.65}
+
+  .phones{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .phone-col{width:372px;flex:none}
+  .phone-cap{font-size:12.5px;font-weight:600;margin-bottom:3px}
+  .phone-cap .tag{font-size:10.5px;font-weight:500;letter-spacing:0.4px;padding:1.5px 6px;
+    border-radius:4px;margin-left:7px;vertical-align:1.5px}
+  .tag.old{background:#e6e6e9;color:#6a6a72}
+  .tag.new{background:rgba(94,106,210,.12);color:var(--primary)}
+  .phone-note{font-size:11.5px;color:var(--page-low);margin-bottom:11px;min-height:32px;line-height:1.55}
+
+  /* ---------- 手机屏 ---------- */
+  .screen{
+    width:372px;height:820px;border-radius:24px;overflow:hidden;position:relative;
+    background:var(--canvas);color:var(--ink);
+    box-shadow:0 1px 1px rgba(0,0,0,.05),0 12px 34px rgba(20,20,30,.16);
+    display:flex;flex-direction:column
+  }
+  .screen.tall{height:1000px}
+
+  .statusbar{height:26px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:10.5px;color:var(--subtle);flex:none}
+
+  /* ---------- App bar ---------- */
+  .appbar{
+    display:flex;align-items:center;gap:8px;padding:8px 18px 12px;flex:none;
+    border-bottom:1px solid var(--hair)
+  }
+  .appbar .title{font-size:16px;font-weight:600;letter-spacing:-0.3px}
+  .appbar .meta{font-size:10.5px;color:var(--tertiary);margin-top:1px}
+  .appbar .acts{margin-left:auto;display:flex;gap:14px;align-items:center;color:var(--subtle)}
+  .appbar .acts svg{width:17px;height:17px;fill:currentColor}
+
+  /* ---------- 滚动体 ---------- */
+  .body{flex:1;overflow:hidden;padding:0 16px}
+  .body.pad{padding-top:14px}
+
+  /* ---------- 底部导航 ---------- */
+  .navbar{
+    flex:none;height:54px;border-top:1px solid var(--hair);
+    display:flex;align-items:center;justify-content:space-around;font-size:10px;color:var(--tertiary)
+  }
+  .navbar .item{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .navbar .item svg{width:19px;height:19px;fill:currentColor}
+  .navbar .item.on{color:var(--primary-hover)}
+  .navbar .item.on svg{color:var(--primary-hover)}
+
+  /* ---------- 旧版样式（BEFORE） ---------- */
+  .b-card{background:var(--s1);border:1px solid var(--hair);border-radius:12px;padding:16px;margin-bottom:14px}
+  .b-label{font-size:12px;color:var(--subtle)}
+  .b-row{display:flex;align-items:center}
+  .b-big{font-size:38px;font-weight:600;letter-spacing:-1.6px;line-height:1.05;margin-top:8px}
+  .b-hr{height:1px;background:var(--hair);margin:14px 0 6px}
+  .b-kv{display:flex;align-items:baseline;padding:7px 0;font-size:13px}
+  .b-kv .k{color:var(--muted);flex:1}
+  .b-kv .v{font-family:ui-monospace,Menlo,monospace;font-weight:500}
+  .b-badge{font-size:10.5px;padding:2.5px 7px;border-radius:5px;margin-left:auto}
+  .b-badge.ok{background:rgba(39,166,68,.12);color:var(--ok)}
+  .b-badge.demo{background:rgba(217,160,58,.12);color:var(--warn)}
+  .b-sec{font-size:11px;letter-spacing:.8px;color:var(--subtle);margin:16px 0 10px;font-weight:500}
+  .b-metric{display:flex;gap:0;margin-top:10px}
+  .b-metric>div{flex:1}
+  .b-metric .v{font-family:ui-monospace,Menlo,monospace;font-size:19px;font-weight:500;letter-spacing:-.4px}
+  .b-metric .l{font-size:11px;color:var(--subtle);margin-top:3px}
+
+  /* ---------- 新版样式（AFTER） ---------- */
+  /* 余额主视觉 */
+  .hero{padding:20px 0 0}
+  .hero .eyebrow{
+    font-size:10.5px;letter-spacing:0.9px;color:var(--tertiary);
+    display:flex;align-items:center;gap:7px
+  }
+  .hero .amount{
+    font-size:52px;font-weight:600;letter-spacing:-2.4px;line-height:1;
+    margin-top:10px;font-variant-numeric:tabular-nums;
+    font-family:-apple-system,"Segoe UI",sans-serif
+  }
+  .hero .amount .sym{font-size:26px;font-weight:500;letter-spacing:-.5px;color:var(--subtle);margin-right:2px}
+  .hero .split{
+    display:flex;gap:0;margin-top:16px;padding-top:14px;border-top:1px solid var(--hair)
+  }
+  .hero .split>div{flex:1}
+  .hero .split>div+div{padding-left:14px;border-left:1px solid var(--hair)}
+  .hero .split .k{font-size:10.5px;color:var(--tertiary);letter-spacing:.3px}
+  .hero .split .v{
+    font-size:14px;font-weight:500;margin-top:3px;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,Menlo,monospace;letter-spacing:-.2px
+  }
+
+  /* 分区标题 */
+  .grp{display:flex;align-items:baseline;margin:22px 0 10px}
+  .grp .t{font-size:11.5px;font-weight:600;letter-spacing:.2px;color:var(--muted)}
+  .grp .n{font-size:10.5px;color:var(--tertiary);margin-left:8px}
+  .grp .more{margin-left:auto;font-size:10.5px;color:var(--primary-hover)}
+
+  /* 今日四格 */
+  .quad{display:flex;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--s1)}
+  .quad>div{flex:1;padding:11px 10px}
+  .quad>div+div{border-left:1px solid var(--hair)}
+  .quad .k{font-size:9.5px;color:var(--tertiary);letter-spacing:.2px;white-space:nowrap}
+  .quad .v{
+    font-size:14px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,Menlo,monospace;letter-spacing:-.3px
+  }
+
+  /* 趋势图 */
+  .chart{
+    border:1px solid var(--hair);border-radius:10px;background:var(--s1);padding:12px 12px 8px
+  }
+  .chart .head{display:flex;align-items:baseline;margin-bottom:10px}
+  .chart .head .t{font-size:11px;color:var(--subtle)}
+  .chart .head .v{margin-left:auto;font-size:11px;color:var(--tertiary);font-variant-numeric:tabular-nums}
+  .plot{position:relative;height:76px}
+  .plot .grid{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between}
+  .plot .grid i{display:block;height:1px;background:var(--hair)}
+  .plot .bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:3px}
+  .plot .bars b{flex:1;background:var(--primary);opacity:.42;border-radius:1.5px 1.5px 0 0;display:block}
+  .plot .bars b.hi{opacity:1}
+  .xaxis{display:flex;justify-content:space-between;font-size:9px;color:var(--tertiary);margin-top:6px}
+
+  /* key 列表 */
+  .list{border:1px solid var(--hair);border-radius:10px;background:var(--s1);overflow:hidden}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 12px}
+  .row+.row{border-top:1px solid var(--hair)}
+  .row .main{flex:1;min-width:0}
+  .row .nm{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .sub{font-size:10.5px;color:var(--tertiary);margin-top:2px;font-variant-numeric:tabular-nums}
+  .row .amt{
+    font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,Menlo,monospace;letter-spacing:-.2px
+  }
+  .row .meter{width:100%;height:3px;border-radius:2px;background:var(--s3);margin-top:6px;overflow:hidden}
+  .row .meter i{display:block;height:100%;background:var(--primary);border-radius:2px}
+  .dot{width:5px;height:5px;border-radius:50%;flex:none}
+
+  /* 底部信息 */
+  .foot{margin-top:20px;display:flex;align-items:center;gap:8px;font-size:10px;color:var(--tertiary)}
+  .foot .chip{font-size:9.5px;padding:1.5px 6px;border-radius:4px}
+  .chip.demo{background:rgba(217,160,58,.14);color:var(--warn)}
+  .chip.err{background:rgba(229,72,77,.14);color:var(--bad)}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;letter-spacing:0.5px;color:var(--page-low);font-weight:600;background:#fafafb}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+    background:#ececef;padding:1px 5px;border-radius:4px}
+
+  .cols{display:flex;gap:26px;flex-wrap:wrap}
+  .col{flex:1;min-width:300px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .box h3{font-size:13px;font-weight:600;margin-bottom:9px}
+  .box ul{list-style:none;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .box li{padding-left:15px;position:relative}
+  .box li::before{content:"";position:absolute;left:2px;top:9px;width:4px;height:4px;
+    border-radius:50%;background:var(--page-low)}
+  .box li b{color:var(--page-ink);font-weight:600}
+
+  .check{display:flex;flex-direction:column;gap:11px}
+  .check label{display:flex;gap:10px;font-size:12.5px;color:var(--page-mid);align-items:flex-start;line-height:1.55}
+  .check input{margin-top:2.5px;accent-color:var(--primary);flex:none}
+  .check b{color:var(--page-ink);font-weight:600}
+
+  .verdict{margin-top:14px;font-size:12.5px;color:var(--page-mid);background:#f7f7f8;
+    border-left:2px solid var(--primary);border-radius:0 8px 8px 0;padding:11px 14px;line-height:1.7}
+
+  .footnote{margin-top:52px;font-size:11.5px;color:var(--page-low);line-height:1.75}
+
+  @media (max-width:860px){.wrap{padding:28px 16px 64px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1>DS Bar · 主界面重设计</h1>
+    <div class="sub">
+      Linear 式深色数据看板 · 余额为王 · 单页纵向流。按 372×820 逻辑像素绘制，与真机 1080×2340 同比例。
+      本页只出稿，不改代码；你确认后我再动 Flutter。
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="facts">
+    <b>先说清这版解决什么问题：</b>
+    <ol>
+      <li><b>现在首屏是「卡片套卡片」</b>：余额一张卡、今日一张卡、本月一张卡、按 key 一张卡、按模型一张卡、key 状态又一张卡。六张同等权重的卡，眼睛没有落点，也不知道先看什么。</li>
+      <li><b>改法：把六张卡压成三个视觉层级</b> —— ① 无边框的主视觉区（余额 + 三个关键数，直接铺在画布上）② 一组指标格与图表（细描边）③ 可滚动列表（细描边）。层级靠留白与字号，不靠六层卡片边框。</li>
+      <li><b>同一屏容纳的信息量更多</b>：首屏从「余额 + 今日」两行，变成「余额 + 三项拆分 + 今日四指标 + 7 日趋势」。这些数据现在都有，只是被卡片切碎了。</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">一 · 首屏：现状 vs 建议</h2>
+  <div class="sec-note">同一台机器、同一份演示数据。注意现状六张卡各占一块，建议把重心收拢到余额上。</div>
+  <div class="phones">
+
+    <!-- 现状 -->
+    <div class="phone-col">
+      <div class="phone-cap">现状<span class="tag old">BEFORE</span></div>
+      <div class="phone-note">
+        六张同权重卡片；「账户余额」四字是废标签；可用状态徽章和余额挤同一行；每张卡都有一圈边框，整页像表格。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:27</span><span>77%</span></div>
+        <div class="appbar">
+          <div>
+            <div class="title">DeepSeek 用量</div>
+          </div>
+          <div class="acts">
+            <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 11-6 6H4a8 8 0 108-8z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 118.5 12 3.5 3.5 0 0112 15.5zm7.4-2.2l2 1.2-2 3.4-2.2-.9a7.5 7.5 0 01-1.7 1l-.3 2.3h-4l-.3-2.3a7.5 7.5 0 01-1.7-1l-2.2.9-2-3.4 2-1.2a7 7 0 010-2l-2-1.2 2-3.4 2.2.9a7.5 7.5 0 011.7-1l.3-2.3h4l.3 2.3a7.5 7.5 0 011.7 1l2.2-.9 2 3.4-2 1.2a7 7 0 010 2z"/></svg>
+          </div>
+        </div>
+        <div class="body pad">
+          <!-- 卡1 余额 -->
+          <div class="b-card">
+            <div class="b-row">
+              <span class="b-label">账户余额</span>
+              <span class="b-badge demo">演示数据</span>
+            </div>
+            <div class="b-big">¥42.80</div>
+            <div style="font-size:12px;color:var(--subtle);margin-top:4px">充值 ¥40.00 · 赠送 ¥2.80</div>
+            <div class="b-hr"></div>
+            <div class="b-kv"><span class="k">本月消费</span><span class="v">¥18.43</span></div>
+            <div class="b-kv"><span class="k">本月 token</span><span class="v">12.48M</span></div>
+          </div>
+          <!-- 卡2 今日 -->
+          <div class="b-card">
+            <div class="b-row"><span class="b-label">今日</span></div>
+            <div class="b-metric">
+              <div><div class="v">¥0.71</div><div class="l">消费</div></div>
+              <div><div class="v">486.0K</div><div class="l">tokens</div></div>
+              <div><div class="v">128</div><div class="l">请求</div></div>
+            </div>
+            <div style="margin-top:14px;height:6px;border-radius:3px;background:var(--s3);overflow:hidden;display:flex">
+              <i style="flex:724;background:var(--primary);display:block"></i>
+              <i style="flex:193;background:var(--warn);display:block"></i>
+              <i style="flex:83;background:var(--ok);display:block"></i>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:9px;font-size:11px;color:var(--subtle)">
+              <span>缓存命中</span><span>缓存未命中</span><span>输出</span>
+            </div>
+          </div>
+          <!-- 卡3 本月 -->
+          <div class="b-card">
+            <div class="b-row">
+              <span class="b-sec" style="margin:0">2026-10 每日用量</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--subtle)">3,640 次 · ¥18.43</span>
+            </div>
+            <div style="height:96px;display:flex;align-items:flex-end;gap:2px;margin-top:10px">
+              <i style="flex:1;height:34%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:52%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:41%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:68%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:29%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:88%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:46%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:62%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:74%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:38%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:55%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+              <i style="flex:1;height:47%;background:var(--primary);opacity:.8;border-radius:2px;display:block"></i>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 建议 -->
+    <div class="phone-col">
+      <div class="phone-cap">建议<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        去掉「账户余额」标签，让 42.80 独占一行、字号 52。充值/赠送降为一行小字。今日四指标压成一条格。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:27</span><span>77%</span></div>
+        <div class="appbar">
+          <div>
+            <div class="title">概览</div>
+            <div class="meta">2 分钟前更新</div>
+          </div>
+          <div class="acts">
+            <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 11-6 6H4a8 8 0 108-8z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 118.5 12 3.5 3.5 0 0112 15.5zm7.4-2.2l2 1.2-2 3.4-2.2-.9a7.5 7.5 0 01-1.7 1l-.3 2.3h-4l-.3-2.3a7.5 7.5 0 01-1.7-1l-2.2.9-2-3.4 2-1.2a7 7 0 010-2l-2-1.2 2-3.4 2.2.9a7.5 7.5 0 011.7-1l.3-2.3h4l.3 2.3a7.5 7.5 0 011.7 1l2.2-.9 2 3.4-2 1.2a7 7 0 010 2z"/></svg>
+          </div>
+        </div>
+        <div class="body">
+          <!-- 主视觉 -->
+          <div class="hero">
+            <div class="eyebrow">
+              <span class="dot" style="background:var(--ok)"></span>
+              <span>可用</span>
+            </div>
+            <div class="amount"><span class="sym">¥</span>42.80</div>
+            <div class="split">
+              <div>
+                <div class="k">充值</div>
+                <div class="v">¥40.00</div>
+              </div>
+              <div>
+                <div class="k">赠送</div>
+                <div class="v">¥2.80</div>
+              </div>
+              <div>
+                <div class="k">今日已花</div>
+                <div class="v" style="color:var(--warn)">−¥0.71</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 今日 -->
+          <div class="grp"><span class="t">今日</span><span class="n">较昨日 +12%</span></div>
+          <div class="quad">
+            <div><div class="k">消费</div><div class="v">¥0.71</div></div>
+            <div><div class="k">TOKEN</div><div class="v">486K</div></div>
+            <div><div class="k">请求</div><div class="v">128</div></div>
+            <div><div class="k">命中</div><div class="v">72.4%</div></div>
+          </div>
+
+          <!-- 趋势 -->
+          <div class="grp"><span class="t">本月</span><span class="n">3,640 次请求 · ¥18.43</span></div>
+          <div class="chart">
+            <div class="head">
+              <span class="t">每日 token</span>
+              <span class="v">峰值 2.41M · 均值 890K</span>
+            </div>
+            <div class="plot">
+              <div class="grid"><i></i><i></i><i></i></div>
+              <div class="bars">
+                <b style="height:34%"></b><b style="height:52%"></b><b style="height:41%"></b>
+                <b style="height:68%"></b><b style="height:29%"></b><b style="height:88%"></b>
+                <b style="height:46%"></b><b style="height:62%"></b><b style="height:74%"></b>
+                <b style="height:38%"></b><b style="height:55%"></b><b style="height:47%"></b>
+                <b class="hi" style="height:60%"></b>
+              </div>
+            </div>
+            <div class="xaxis"><span>10-19</span><span>10-31</span></div>
+          </div>
+
+          <!-- key 列表（露出一半，暗示可滚动） -->
+          <div class="grp"><span class="t">按 Key</span><span class="n">本月</span><span class="more">全部 3 个</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="main">
+                <div class="nm">prod-backend</div>
+                <div class="sub">7.40M tokens · 2,160 次 · 今日 −0.42</div>
+                <div class="meter"><i style="width:61%"></i></div>
+              </div>
+              <div class="amt">¥11.24</div>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">dev-local</div>
+                <div class="sub">3.28M tokens · 1,020 次 · 今日 −0.21</div>
+                <div class="meter"><i style="width:26%"></i></div>
+              </div>
+              <div class="amt">¥4.81</div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">二 · 完整滚动（建议版全貌）</h2>
+  <div class="sec-note">向下滚完看到的全部内容。按 key、按模型、Key 状态三段都用同一种列表语言，不再各自套卡片。</div>
+  <div class="phones">
+    <div class="phone-col">
+      <div class="phone-cap">建议 · 下半屏<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        按模型用横向占比条而非进度条堆叠；Key 状态只用右侧一个语义点，不再单独占一张卡。
+      </div>
+      <div class="screen tall">
+        <div class="statusbar"><span>2:27</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">概览</div><div class="meta">2 分钟前更新</div></div>
+          <div class="acts">
+            <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 11-6 6H4a8 8 0 108-8z"/></svg>
+          </div>
+        </div>
+        <div class="body">
+          <div class="grp" style="margin-top:14px"><span class="t">按 Model</span><span class="n">本月</span></div>
+          <div class="chart">
+            <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:12px">
+              <i style="flex:731;background:var(--primary);display:block"></i>
+              <i style="flex:269;background:var(--primary-hover);opacity:.5;display:block"></i>
+            </div>
+            <div class="row" style="border:0;padding:6px 0">
+              <span class="dot" style="background:var(--primary)"></span>
+              <div class="main">
+                <div class="nm">deepseek-chat</div>
+                <div class="sub">9.12M tokens · 命中 73.1%</div>
+              </div>
+              <div class="amt">¥12.82</div>
+            </div>
+            <div class="row" style="border:0;padding:6px 0;border-top:1px solid var(--hair)">
+              <span class="dot" style="background:var(--primary-hover);opacity:.6"></span>
+              <div class="main">
+                <div class="nm">deepseek-reasoner</div>
+                <div class="sub">3.36M tokens · 命中 76.9%</div>
+              </div>
+              <div class="amt">¥5.61</div>
+            </div>
+          </div>
+
+          <div class="grp"><span class="t">凭据状态</span></div>
+          <div class="list">
+            <div class="row">
+              <span class="dot" style="background:var(--ok)"></span>
+              <div class="main">
+                <div class="nm">prod-backend</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">sk-ab…9f2c</div>
+              </div>
+              <span style="font-size:10.5px;color:var(--ok)">有效</span>
+            </div>
+            <div class="row">
+              <span class="dot" style="background:var(--ok)"></span>
+              <div class="main">
+                <div class="nm">dev-local</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">sk-7f…21ae</div>
+              </div>
+              <span style="font-size:10.5px;color:var(--ok)">有效</span>
+            </div>
+            <div class="row">
+              <span class="dot" style="background:var(--bad)"></span>
+              <div class="main">
+                <div class="nm">ci-pipeline</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">sk-0c…88bd</div>
+              </div>
+              <span style="font-size:10.5px;color:var(--bad)">已失效</span>
+            </div>
+          </div>
+          <div class="foot">
+            <span>余额为账户级，同账号 key 共享</span>
+            <span class="chip demo">演示数据</span>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">首次使用 · 空态<span class="tag new">EMPTY</span></div>
+      <div class="phone-note">
+        没配凭据时不显示 0 元和空图表。只给一条明确路径：先做什么、再做什么、各自能解锁什么。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:27</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">概览</div></div>
+          <div class="acts"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 11-6 6H4a8 8 0 108-8z"/></svg></div>
+        </div>
+        <div class="body" style="display:flex;flex-direction:column;justify-content:center">
+          <div style="font-size:19px;font-weight:600;letter-spacing:-.4px">还差两步</div>
+          <div style="font-size:12px;color:var(--subtle);margin-top:6px;line-height:1.6">
+            凭据只存在本机，直连 deepseek.com，不经任何中转。
+          </div>
+
+          <div style="margin-top:22px;border:1px solid var(--hair);border-radius:10px;background:var(--s1);overflow:hidden">
+            <div class="row">
+              <span style="width:17px;height:17px;border-radius:50%;border:1.5px solid var(--primary);
+                display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--primary)">1</span>
+              <div class="main">
+                <div class="nm">添加 API Key</div>
+                <div class="sub">解锁余额与 Key 有效性</div>
+              </div>
+              <span style="font-size:11px;color:var(--primary-hover)">去添加</span>
+            </div>
+            <div class="row">
+              <span style="width:17px;height:17px;border-radius:50%;border:1.5px solid var(--hair2);
+                display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--tertiary)">2</span>
+              <div class="main">
+                <div class="nm">填入平台 userToken</div>
+                <div class="sub">解锁 token 用量与分 Key 明细</div>
+              </div>
+              <span style="font-size:11px;color:var(--tertiary)">去填入</span>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;font-size:11px;color:var(--tertiary);line-height:1.65">
+            只想先看看界面？可在设置里打开「演示数据」，用虚构数字预览全部页面。
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">异常态<span class="tag new">ERROR</span></div>
+      <div class="phone-note">
+        用量接口挂了（userToken 过期）时，余额仍照常显示，只在对应区块就地提示，不做全页报错弹窗。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:27</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">概览</div><div class="meta">2 分钟前更新</div></div>
+          <div class="acts"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 11-6 6H4a8 8 0 108-8z"/></svg></div>
+        </div>
+        <div class="body">
+          <div class="hero">
+            <div class="eyebrow">
+              <span class="dot" style="background:var(--ok)"></span>
+              <span>可用</span>
+            </div>
+            <div class="amount"><span class="sym">¥</span>42.80</div>
+            <div class="split">
+              <div><div class="k">充值</div><div class="v">¥40.00</div></div>
+              <div><div class="k">赠送</div><div class="v">¥2.80</div></div>
+              <div><div class="k">今日已花</div><div class="v" style="color:var(--tertiary)">——</div></div>
+            </div>
+          </div>
+
+          <!-- 就地提示，不遮余额 -->
+          <div style="margin-top:22px;border:1px solid rgba(229,72,77,.28);border-radius:10px;
+            background:rgba(229,72,77,.07);padding:12px 13px">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span class="dot" style="background:var(--bad)"></span>
+              <span style="font-size:12px;font-weight:500;color:var(--bad)">用量数据不可用</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+              平台 userToken 已过期（401）。余额不受影响；去平台重新复制 userToken 后填入设置即可恢复。
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <span style="font-size:11px;padding:5px 12px;border-radius:7px;background:var(--primary);color:#fff">重新填入</span>
+              <span style="font-size:11px;padding:5px 12px;border-radius:7px;border:1px solid var(--hair2);color:var(--muted)">打开平台</span>
+            </div>
+          </div>
+
+          <div class="grp"><span class="t">按 Key</span><span class="n">本月</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="main"><div class="nm">prod-backend</div><div class="sub">用量未接入</div></div>
+              <div class="amt" style="color:var(--tertiary)">——</div>
+            </div>
+            <div class="row">
+              <div class="main"><div class="nm">dev-local</div><div class="sub">用量未接入</div></div>
+              <div class="amt" style="color:var(--tertiary)">——</div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">三 · 设计语言（从哪抄的、为什么）</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="box">
+        <h3>取法对象与具体规则</h3>
+        <ul>
+          <li><b>Linear</b>：近黑画布 <code>#010102</code> 而非纯黑；表面逐级提亮 <code>#0F1011 → #18191A</code>；1px hairline 分隔；单一强调色 <code>#5E6AD2</code>，只用于品牌点与主按钮，不做装饰。</li>
+          <li><b>Stripe / Vercel Dashboard</b>：数字用等宽字体 + <code>tabular-nums</code>，位数不跳动；标签淡化、数值加重，靠字重而非颜色分层。</li>
+          <li><b>Apple Health / 记账类 App</b>：主指标独占一行，字号跨级（52 → 14 → 10.5sp），一级视觉只有一个。</li>
+          <li><b>Material 3</b>：底部两 tab 导航、下拉刷新、列表行最小 44dp 触控区。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <div class="box">
+        <h3>刻意不做的</h3>
+        <ul>
+          <li><b>不加六张卡片</b>：卡片越多层级越平，边框成了噪声。改用一个主视觉区 + 少量细描边容器。</li>
+          <li><b>不用彩色渐变与玻璃拟态</b>：数据看板要冷静准确，渐变会让人怀疑数字是否被装饰过。</li>
+          <li><b>不放大饼图</b>：2–3 个模型的占比，一条横向占比条比饼图读得快。</li>
+          <li><b>不给每个数配图标</b>：图标占位多、区分度低，纯数字更快扫读。</li>
+          <li><b>不用红色标消费</b>：红色留给真正的错误。支出用负号 <code>−¥0.71</code> 与中性色。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec">四 · 每个数字的真实来源</h2>
+  <div class="sec-note">设计稿里出现的每一项，都必须在接口里有对应字段。拿不到的一律不画。</div>
+  <table>
+    <thead>
+      <tr><th style="width:150px">界面元素</th><th style="width:210px">数据来源</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>余额大字 / 充值 / 赠送</td><td class="num">官方 <code>/user/balance</code></td>
+        <td>三个字段直接对应：<code>total_balance</code>、<code>topped_up_balance</code>、<code>granted_balance</code>。</td></tr>
+      <tr><td>可用状态点</td><td class="num">官方 <code>is_available</code></td>
+        <td>布尔值，直接映射绿/红点。</td></tr>
+      <tr><td>今日消费 / token / 请求</td><td class="num">平台 <code>usage/export</code></td>
+        <td>按本地时区 0 点起的窗口统计。</td></tr>
+      <tr><td>今日命中率</td><td class="num">平台 <code>usage/amount</code></td>
+        <td>命中 /（命中 + 未命中）自行计算，接口不直接给。</td></tr>
+      <tr><td>「较昨日 +12%」</td><td class="num">派生</td>
+        <td>由 <code>days</code> 数组末两天相除得到，<b>需要至少 2 天数据</b>；不足时这一处不显示。</td></tr>
+      <tr><td>本月趋势图</td><td class="num">平台 <code>usage/amount</code> 的 <code>days</code></td>
+        <td>逐日 token，直接映射柱高。</td></tr>
+      <tr><td>峰值 / 均值</td><td class="num">派生</td>
+        <td>由 <code>days</code> 自行求最大与平均。</td></tr>
+      <tr><td>按 Key 金额与 token</td><td class="num">平台 <code>usage/export</code> CSV</td>
+        <td>按 <code>api_key_name</code> 聚合；<b>本地名称与平台名称不一致时会分成两行</b>。</td></tr>
+      <tr><td>按 Key 占比条</td><td class="num">派生</td>
+        <td>单 key 消费 / 各 key 合计。</td></tr>
+      <tr><td>按 Model 占比条</td><td class="num">平台 <code>usage/cost</code></td>
+        <td>分模型费用，横向占比条。</td></tr>
+      <tr><td>凭据状态点</td><td class="num">逐 key 调余额接口</td>
+        <td>200 即有效，401/403 即失效。</td></tr>
+      <tr><td style="color:#b04a4a">赠送额到期时间</td><td class="num" style="color:#b04a4a">无</td>
+        <td style="color:#b04a4a"><b>接口不给</b>。初稿曾写「12 天后到期」，已删除。要显示只能在本地记录首次看见赠送额的时间来估，属推算，不做。</td></tr>
+      <tr><td style="color:#b04a4a">单 Key 余额</td><td class="num" style="color:#b04a4a">无</td>
+        <td style="color:#b04a4a"><b>余额是账户级</b>，同账号所有 key 共享一个余额，不存在「每 key 各自余额」。设计上不出现分 key 余额。</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">五 · 规格</h2>
+  <table>
+    <thead>
+      <tr><th style="width:140px">区块</th><th style="width:130px">字号 / 字重</th><th style="width:110px">间距</th><th>规则</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>余额主数字</td><td class="num">52sp / 600</td><td class="num">上 10 · 下 16</td>
+        <td>字距 −2.4sp，币种符号 26sp/500 降一级。全页唯一的一级视觉。</td></tr>
+      <tr><td>可用状态行</td><td class="num">10.5sp / 400</td><td class="num">—</td>
+        <td>5dp 语义点 + 一行「可用 / 余额不足」。<b>到期时间接口不提供，不显示</b>。</td></tr>
+      <tr><td>余额拆分三项</td><td class="num">10.5sp 标签<br>14sp 值</td><td class="num">上 14 · 竖分隔</td>
+        <td>充值 / 赠送 / 今日已花。只在这一行出现，不与今日指标重复。</td></tr>
+      <tr><td>分区标题</td><td class="num">11.5sp / 600</td><td class="num">上 22 · 下 10</td>
+        <td>左侧标题 + 可选灰色注记（如 <code>3,640 次 · ¥18.43</code>）。</td></tr>
+      <tr><td>今日四格</td><td class="num">9.5sp 标签<br>14sp 值</td><td class="num">内 11 × 10</td>
+        <td>消费 / token / 请求 / 命中率。1px 竖分隔，整组一个 10dp 圆角容器。</td></tr>
+      <tr><td>趋势图</td><td class="num">11sp 标题<br>9sp 轴</td><td class="num">高 76</td>
+        <td>柱宽自适应、间距 3dp、圆角 1.5dp 仅顶部。今天实色，其余 42% 透明。三条 hairline 网格。</td></tr>
+      <tr><td>列表行</td><td class="num">12.5sp / 500<br>10.5sp 次行</td><td class="num">内 11 × 12</td>
+        <td>名称 + 次行（等宽数字）+ 右侧金额；按 key 时加一条 3dp 占比条。</td></tr>
+      <tr><td>底部导航</td><td class="num">10sp</td><td class="num">高 54</td>
+        <td>仅「概览 / 设置」两项。选中态用强调色，不用背景胶囊。</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">六 · 请逐条确认</h2>
+  <div class="box">
+    <div class="check">
+      <label><input type="checkbox"><span><b>余额独占一级视觉</b>：字号 52sp，删掉「账户余额」标签，充值/赠送降为一行小字。</span></label>
+      <label><input type="checkbox"><span><b>卡片从六张减到三级</b>：主视觉区无边框 → 指标格/图表细描边 → 列表细描边。</span></label>
+      <label><input type="checkbox"><span><b>今日四指标压成一条格</b>：消费 / token / 请求 / 命中率，等比四格。</span></label>
+      <label><input type="checkbox"><span><b>按 key 行加占比条</b>，直接看出谁在烧钱。</span></label>
+      <label><input type="checkbox"><span><b>按 model 用横向占比条</b>，不用饼图、不用多条进度条堆叠。</span></label>
+      <label><input type="checkbox"><span><b>Key 状态并进「凭据状态」列表</b>，右侧一个语义点 + 有效/已失效，不再单独占卡。</span></label>
+      <label><input type="checkbox"><span><b>空态改成两步引导</b>（先 Key、后 userToken，各自标明解锁什么），不显示 0 元和空图表。</span></label>
+      <label><input type="checkbox"><span><b>异常就地提示</b>：用量挂掉时余额照常显示，只在用量区块内提示原因与两个操作。</span></label>
+      <label><input type="checkbox"><span><b>支出用负号不用红色</b>，红色只留给错误状态。</span></label>
+    </div>
+    <div class="verdict">
+      全勾＝按此稿改 Flutter。改动范围：<code>theme.dart</code>（字号阶梯与间距）、
+      <code>home_page.dart</code>（重写为四屏结构）、<code>charts.dart</code>（趋势图与占比条）、
+      <code>common.dart</code>（分区标题、列表容器）。设置页同步对齐视觉语言。数据层与原生层不动。
+    </div>
+  </div>
+
+  <div class="footnote">
+    本页为静态视觉稿，用逻辑像素按 1080×2340 折算绘制，未接真实数据，图表为示意值。
+    所示数字取自 App 内置演示数据，非你的真实账户。
+  </div>
+
+</div>
+</body>
+</html>

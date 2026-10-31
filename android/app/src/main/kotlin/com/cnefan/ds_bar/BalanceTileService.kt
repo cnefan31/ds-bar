@@ -43,20 +43,38 @@ class BalanceTileService : TileService() {
         val snapshot = prefs.cachedSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
         val info = snapshot?.optJSONObject("balance")?.optJSONArray("infos")?.optJSONObject(0)
         val currency = snapshot?.optString("currency", "CNY") ?: "CNY"
-        val sym = if (currency == "USD") "$" else "¥"
+        val sym = Fmt.currencySymbol(currency)
 
         tile.state = if (snapshot == null) Tile.STATE_INACTIVE else Tile.STATE_ACTIVE
 
+        // 主行档位：余额；副行：今日消费。两个数层级必须拉开，否则会被读成一个数。
         val label: String
         val subtitle: String?
-        if (info != null) {
-            label = "$sym${Fmt.money(info.optDouble("totalBalance", 0.0))}"
-            val today = snapshot?.optJSONObject("usage")?.optJSONObject("today")
-            subtitle = today?.let { "今日 $sym${Fmt.money(it.optDouble("cost", 0.0))}" }
-                ?: "DeepSeek 余额"
-        } else {
-            label = "DeepSeek"
-            subtitle = if (prefs.keys().isEmpty()) "未配置" else "点按刷新"
+        when {
+            info != null -> {
+                label = sym + Fmt.moneyCompact(info.optDouble("totalBalance", 0.0))
+                val todayObj = snapshot?.optJSONObject("usage")?.optJSONObject("today")
+                val cost = todayObj?.optDouble("cost", 0.0) ?: 0.0
+                subtitle = when {
+                    todayObj == null -> "用量未接入"
+                    cost <= 0.0 -> "今日 0.00"
+                    // 副行去掉币种符号，字符数减半。
+                    else -> "今日 " + Fmt.spentBare(cost)
+                }
+            }
+            prefs.keys().isEmpty() -> {
+                label = Fmt.DASH
+                subtitle = "未配置 Key"
+            }
+            else -> {
+                label = Fmt.DASH
+                subtitle = when (snapshot?.optJSONObject("balanceError")?.optString("code")) {
+                    "auth_failed" -> "Key 无效"
+                    "timeout" -> "请求超时"
+                    null -> "点按刷新"
+                    else -> "获取失败"
+                }
+            }
         }
 
         tile.label = label

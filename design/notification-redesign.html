@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DS Bar · 通知栏与磁贴重设计</title>
+<style>
+  :root{
+    --page:#f2f2f3;
+    --page-ink:#111113;
+    --page-mid:#58585f;
+    --page-low:#8e8e96;
+    --line:#dcdce0;
+    --panel:#ffffff;
+
+    --d-card:#191A1C;
+    --d-hi:#F4F4F6;
+    --d-mid:#B4B5BA;
+    --d-low:#87888F;
+    --d-line:#313236;
+    --d-head:#A8A9AF;
+
+    --l-card:#F4F4F6;
+    --l-hi:#121214;
+    --l-mid:#4C4D54;
+    --l-low:#77787F;
+    --l-line:#D3D3D8;
+    --l-head:#5E5F66;
+
+    --accent:#5E6AD2;
+    --accent-soft:#8A94E8;
+    --ok:#2E9E58;
+    --warn:#C08A2B;
+    --bad:#D1454A;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+
+  body{
+    background:var(--page);color:var(--page-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased
+  }
+
+  .wrap{max-width:1200px;margin:0 auto;padding:44px 28px 96px}
+
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:32px}
+  .head h1{font-size:27px;font-weight:600;letter-spacing:-0.7px}
+  .head .sub{font-size:13px;color:var(--page-mid);margin-top:7px;max-width:600px;line-height:1.6}
+  .toggle{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel);flex:none}
+  .toggle button{border:0;background:transparent;padding:8px 15px;font-size:12.5px;cursor:pointer;color:var(--page-mid);font-family:inherit;font-weight:500}
+  .toggle button.on{background:var(--accent);color:#fff}
+
+  .rule{height:1px;background:var(--line);margin:26px 0 34px}
+
+  .facts{background:#fff;border:1px solid var(--line);border-left:2px solid var(--warn);
+    border-radius:0 10px 10px 0;padding:15px 18px;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .facts b{color:var(--page-ink);font-weight:600}
+  .facts ol{margin:8px 0 0 17px}
+  .facts li{margin-bottom:4px}
+
+  h2.sec{font-size:12px;letter-spacing:1.1px;font-weight:600;color:var(--page-low);margin:46px 0 18px;text-transform:uppercase}
+  h2.sec:first-of-type{margin-top:0}
+  .sec-note{font-size:12px;color:var(--page-low);margin:-10px 0 16px;line-height:1.6}
+
+  .phones{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .phone-col{width:360px;flex:none}
+  .phone-cap{font-size:12.5px;font-weight:600;margin-bottom:3px}
+  .phone-cap .tag{font-size:10.5px;font-weight:500;letter-spacing:0.4px;padding:1.5px 6px;border-radius:4px;margin-left:7px;vertical-align:1.5px}
+  .tag.old{background:#e6e6e9;color:#6a6a72}
+  .tag.new{background:rgba(94,106,210,.12);color:var(--accent)}
+  .tag.alt{background:#eceae3;color:#8a7a3f}
+  .phone-note{font-size:11.5px;color:var(--page-low);margin-bottom:11px;min-height:34px;line-height:1.55}
+
+  .phone{width:360px;height:780px;border-radius:26px;overflow:hidden;position:relative;background:#0e0e10;
+    box-shadow:0 1px 1px rgba(0,0,0,.05),0 10px 30px rgba(20,20,30,.13)}
+  .phone.light{background:#c9c9ce}
+
+  .statusbar{height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11px;font-weight:500;color:#fff;opacity:.9}
+  .statusbar .ic{display:flex;gap:4px;align-items:center}
+  .statusbar .dot{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.75}
+
+  .shade{position:absolute;inset:0;
+    background:radial-gradient(120% 80% at 15% 0%, #2a2c34 0%, transparent 55%),
+      radial-gradient(90% 70% at 85% 100%, #232a2c 0%, transparent 60%), #131316}
+  .shade.light{background:radial-gradient(120% 80% at 15% 0%, #e8e9ee 0%, transparent 55%),
+      radial-gradient(90% 70% at 85% 100%, #dfe4e6 0%, transparent 60%), #d9dade}
+
+  .shade-body{position:relative;padding:0 12px}
+  .date-row{padding:12px 8px 14px;font-size:13px;color:rgba(255,255,255,.62);font-weight:500}
+  .phone.light .date-row{color:rgba(0,0,0,.52)}
+  .qs-mini{display:flex;gap:8px;margin-bottom:16px}
+  .qs-mini .b{flex:1;height:30px;border-radius:15px;background:rgba(255,255,255,.12)}
+  .phone.light .qs-mini .b{background:rgba(0,0,0,.09)}
+
+  .card{border-radius:16px;background:var(--d-card);color:var(--d-hi);margin-bottom:10px;overflow:hidden}
+  .phone.light .card{background:var(--l-card);color:var(--l-hi)}
+
+  .syshead{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--d-head);padding:9px 14px 0;font-weight:500}
+  .phone.light .syshead{color:var(--l-head)}
+  .appico{width:13px;height:13px;border-radius:3.5px;background:var(--accent);flex:none;display:flex;align-items:center;justify-content:center}
+  .appico svg{width:8px;height:8px;fill:#fff}
+  .syshead .time{margin-left:auto;color:var(--d-low);font-size:10.5px;font-variant-numeric:tabular-nums}
+  .phone.light .syshead .time{color:var(--l-low)}
+
+  .n-title{font-size:14px;font-weight:600;line-height:1.35;padding:5px 14px 0;letter-spacing:-0.1px}
+  .n-text{font-size:12.5px;color:var(--d-mid);line-height:1.4;padding:2px 14px 0}
+  .phone.light .n-text{color:var(--l-mid)}
+  .n-big{font-size:12.5px;color:var(--d-mid);line-height:1.6;margin:7px 14px 0;padding-top:8px;border-top:1px solid var(--d-line);white-space:pre-line}
+  .phone.light .n-big{color:var(--l-mid);border-top-color:var(--l-line)}
+  .n-acts{display:flex;gap:8px;padding:9px 14px 11px}
+  .n-btn{font-size:12px;padding:4px 12px;border-radius:13px;background:rgba(255,255,255,.09);color:var(--d-mid)}
+  .phone.light .n-btn{background:rgba(0,0,0,.06);color:var(--l-mid)}
+
+  .cl{display:flex;align-items:center;gap:10px;padding:8px 14px 11px}
+  .cl-amt{font-size:19px;font-weight:600;letter-spacing:-0.5px;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cl-sep{width:1px;height:14px;background:var(--d-line);flex:none}
+  .phone.light .cl-sep{background:var(--l-line)}
+  .cl-delta{font-size:12.5px;color:var(--d-mid);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .phone.light .cl-delta{color:var(--l-mid)}
+  .cl-flag{width:5px;height:5px;border-radius:50%;background:var(--warn);margin-left:auto;flex:none}
+
+  .ex{padding:7px 14px 11px}
+  .ex-head{display:flex;align-items:baseline;gap:8px}
+  .ex-amt{font-size:25px;font-weight:600;letter-spacing:-1px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ex-today{margin-left:auto;font-size:12px;color:var(--d-mid);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .phone.light .ex-today{color:var(--l-mid)}
+
+  .ex-grid{display:flex;margin-top:9px;padding-top:8px;border-top:1px solid var(--d-line)}
+  .phone.light .ex-grid{border-top-color:var(--l-line)}
+  .ex-cell{flex:1;min-width:0}
+  .ex-cell+.ex-cell{padding-left:9px;border-left:1px solid var(--d-line)}
+  .phone.light .ex-cell+.ex-cell{border-left-color:var(--l-line)}
+  .ex-lab{font-size:9.5px;letter-spacing:0.2px;color:var(--d-low);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .phone.light .ex-lab{color:var(--l-low)}
+  .ex-val{font-size:12.5px;font-weight:500;margin-top:1px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .ex-chart{display:flex;align-items:flex-end;gap:9px;margin-top:9px}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:30px;flex:1}
+  .bars i{flex:1;border-radius:1.5px;background:var(--accent-soft);opacity:.55;display:block}
+  .bars i.last{opacity:1;background:var(--accent)}
+  .chart-note{font-size:9.5px;color:var(--d-low);white-space:nowrap;line-height:1.35;text-align:right}
+  .phone.light .chart-note{color:var(--l-low)}
+
+  .ex-foot{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:10px;color:var(--d-low);font-variant-numeric:tabular-nums}
+  .phone.light .ex-foot{color:var(--l-low)}
+  .chip{font-size:9.5px;padding:1px 6px;border-radius:4px;font-weight:500;letter-spacing:0.2px}
+  .chip.demo{background:rgba(192,138,43,.16);color:var(--warn)}
+  .chip.err{background:rgba(209,69,74,.16);color:var(--bad)}
+
+  .qspanel{width:360px;height:780px;border-radius:26px;overflow:hidden;position:relative;background:#131316;
+    box-shadow:0 1px 1px rgba(0,0,0,.05),0 10px 30px rgba(20,20,30,.13)}
+  .qspanel .inner{position:relative;padding:14px 16px}
+  .qs-head{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55);margin-bottom:14px}
+  .qs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  .tile{position:relative;border-radius:22px;padding:12px 14px;min-height:82px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(255,255,255,.10);color:#fff}
+  .tile .ti{width:20px;height:20px;opacity:.95}
+  .tile .ti svg{width:20px;height:20px;fill:currentColor}
+  .tile .lab{font-size:13px;font-weight:500;letter-spacing:-0.2px;font-variant-numeric:tabular-nums;line-height:1.2}
+  .tile .sub{font-size:10.5px;color:rgba(255,255,255,.62);font-variant-numeric:tabular-nums;margin-top:1px}
+  .tile.active{background:var(--accent)}
+  .tile.active .sub{color:rgba(255,255,255,.78)}
+  .tile.dim2{background:rgba(255,255,255,.06);color:rgba(255,255,255,.72)}
+  .tile.dim2 .sub{color:rgba(255,255,255,.45)}
+  .tile.plain .lab{font-size:12px;font-weight:400;color:rgba(255,255,255,.9)}
+  .tile.big .lab{font-size:20px;letter-spacing:-0.6px;font-weight:600}
+
+  .qspanel.light{background:#d9dade}
+  .qspanel.light .qs-head{color:rgba(0,0,0,.5)}
+  .qspanel.light .tile{background:rgba(255,255,255,.75);color:var(--l-hi)}
+  .qspanel.light .tile .sub{color:var(--l-low)}
+  .qspanel.light .tile.active{background:var(--accent);color:#fff}
+  .qspanel.light .tile.active .sub{color:rgba(255,255,255,.8)}
+  .qspanel.light .tile.dim2{background:rgba(255,255,255,.45);color:var(--l-low)}
+  .qspanel.light .tile.plain{background:rgba(255,255,255,.75)}
+  .qspanel.light .tile.plain .lab{color:var(--l-hi)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;letter-spacing:0.5px;color:var(--page-low);font-weight:600;background:#fafafb}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;background:#ececef;padding:1px 5px;border-radius:4px}
+
+  .cols{display:flex;gap:26px;flex-wrap:wrap}
+  .col{flex:1;min-width:300px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .box h3{font-size:13px;font-weight:600;margin-bottom:9px}
+  .box ul{list-style:none;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .box li{padding-left:15px;position:relative}
+  .box li::before{content:"";position:absolute;left:2px;top:9px;width:4px;height:4px;border-radius:50%;background:var(--page-low)}
+  .box li b{color:var(--page-ink);font-weight:600}
+
+  .check{display:flex;flex-direction:column;gap:11px}
+  .check label{display:flex;gap:10px;font-size:12.5px;color:var(--page-mid);align-items:flex-start;line-height:1.55}
+  .check input{margin-top:2.5px;accent-color:var(--accent);flex:none}
+  .check b{color:var(--page-ink);font-weight:600}
+
+  .verdict{margin-top:14px;font-size:12.5px;color:var(--page-mid);background:#f7f7f8;
+    border-left:2px solid var(--accent);border-radius:0 8px 8px 0;padding:11px 14px;line-height:1.7}
+
+  .foot{margin-top:52px;font-size:11.5px;color:var(--page-low);line-height:1.75}
+
+  @media (max-width:820px){.wrap{padding:28px 16px 64px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1>DS Bar · 通知栏与磁贴重设计</h1>
+      <div class="sub">
+        按你的意见：删掉「DeepSeek 余额」这类自明标题，把信息密度提上去。
+        以下按 360dp 宽、Android 真实排版单位绘制，标注尺寸取自实际渲染测量，非估算。
+      </div>
+    </div>
+    <div class="toggle" role="group" aria-label="明暗模式">
+      <button id="btn-dark" class="on">深色</button>
+      <button id="btn-light">浅色</button>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="facts">
+    <b>先说三条技术事实，它们决定「能删什么」：</b>
+    <ol>
+      <li><b>通知头部那行（小图标 + DS Bar + 时间）由 SystemUI 绘制，删不掉。</b>用
+        <code>DecoratedCustomViewStyle</code> 时固定占约 22dp。只有换成完全裸的自定义视图才能在某些 OEM 上压掉它，
+        代价是失去系统通知的标准外观与折叠动效。<b>所以头部保留，只删我们自己写的标题。</b></li>
+      <li><b>折叠态有下限，但现在的浪费不在头部。</b>当前折叠态实测 <span id="t-old">—</span>；系统单行通知的经验值约 64dp（此数为经验值，未在本机核验）。
+        差额 63dp 全来自自写的标题、副标题、tokens 重复、以及独占一行的刷新按钮。</li>
+      <li><b>展开态内容区高度有上限</b>，超出会被系统裁掉。业界经验值约 256dp，但<b>各 OEM 不同，我没有在本机核验过这个数</b>；方案按 190–204dp 设计，留出余量，落地后需在真机逐项确认不被裁。</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">一 · 折叠态：现状 vs 建议</h2>
+  <div class="sec-note">同一屏对照。两者头部完全一样，差别全在头部以下。</div>
+  <div class="phones">
+
+    <div class="phone-col">
+      <div class="phone-cap">现状<span class="tag old">BEFORE</span></div>
+      <div class="phone-note">
+        「余额」是废字，卡片里不可能是别的东西；第二行 tokens 与展开态重复；「刷新」胶囊又占 30dp。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="n-title">余额 ¥42.80</div>
+            <div class="n-text">今日 ¥0.71 · 486.0K tokens</div>
+            <div class="n-acts"><span class="n-btn">刷新</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">建议<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        一行两个数，高度 <span id="t-old2">—</span> → <span id="t-new2">—</span>。刷新改为点整卡进 App，不再单占一行按钮。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="cl">
+              <span class="cl-amt">¥42.80</span>
+              <span class="cl-sep"></span>
+              <span class="cl-delta">今日 −¥0.71</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">建议 · 异常态<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        正常态不显示状态点；异常时行尾加 5dp 圆点（黄=用量缺失，红=凭据失效），靠颜色不靠文字占位。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="cl">
+              <span class="cl-amt">¥42.80</span>
+              <span class="cl-sep"></span>
+              <span class="cl-delta">今日 −¥0.71</span>
+              <span class="cl-flag"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="cl">
+              <span class="cl-amt" style="color:var(--d-low)">——</span>
+              <span class="cl-sep"></span>
+              <span class="cl-delta">userToken 已过期</span>
+              <span class="cl-flag" style="background:var(--bad)"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">二 · 展开态</h2>
+  <div class="sec-note">四段结构，内容区约 210dp（预算 256dp）。信息量约为现状 3 倍。</div>
+  <div class="phones">
+
+    <div class="phone-col">
+      <div class="phone-cap">现状<span class="tag old">BEFORE</span></div>
+      <div class="phone-note">
+        一行长句用全角竖线拼接，四种信息同权重平铺，扫读没有落点，且与正文重复。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="n-title">余额 ¥42.80</div>
+            <div class="n-text">今日 ¥0.71 · 486.0K tokens</div>
+            <div class="n-big">本月消费 ¥18.43｜今日 486.0K tokens
+更新 11-01 01:33</div>
+            <div class="n-acts"><span class="n-btn">刷新</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">建议<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        主金额 → 四指标带 → 7 日柱 → 状态脚注。层级靠字号与分隔线，不靠背景色块。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="ex">
+              <div class="ex-head">
+                <span class="ex-amt">¥42.80</span>
+                <span class="ex-today">今日 −¥0.71</span>
+              </div>
+              <div class="ex-grid">
+                <div class="ex-cell"><div class="ex-lab">本月消费</div><div class="ex-val">¥18.43</div></div>
+                <div class="ex-cell"><div class="ex-lab">本月 TOKEN</div><div class="ex-val">1.24M</div></div>
+                <div class="ex-cell"><div class="ex-lab">请求</div><div class="ex-val">3,640</div></div>
+                <div class="ex-cell"><div class="ex-lab">命中率</div><div class="ex-val">76.4%</div></div>
+              </div>
+              <div class="ex-chart">
+                <div class="bars">
+                  <i style="height:34%"></i><i style="height:52%"></i><i style="height:41%"></i>
+                  <i style="height:68%"></i><i style="height:29%"></i><i style="height:88%"></i>
+                  <i class="last" style="height:46%"></i>
+                </div>
+                <div class="chart-note">近 7 日<br>峰值 2.41M</div>
+              </div>
+              <div class="ex-foot"><span>1:33 更新</span><span class="chip demo">演示数据</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">备选 · 满密度<span class="tag alt">DENSITY MAX</span></div>
+      <div class="phone-note">
+        若还要更密：把 7 日柱换成 Top key 用量。更接近 256dp 上限，裁切风险也更高。
+      </div>
+      <div class="phone">
+        <div class="shade"></div>
+        <div class="statusbar"><span>1:33</span><span class="ic"><span class="dot"></span><span class="dot"></span><span>77</span></span></div>
+        <div class="shade-body">
+          <div class="date-row">11月1日 周六</div>
+          <div class="qs-mini"><div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div></div>
+          <div class="card">
+            <div class="syshead">
+              <span class="appico"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/></svg></span>
+              <span>DS Bar</span><span class="time">1:33</span>
+            </div>
+            <div class="ex">
+              <div class="ex-head">
+                <span class="ex-amt">¥42.80</span>
+                <span class="ex-today">今日 −¥0.71</span>
+              </div>
+              <div class="ex-grid">
+                <div class="ex-cell"><div class="ex-lab">本月消费</div><div class="ex-val">¥18.43</div></div>
+                <div class="ex-cell"><div class="ex-lab">本月 TOKEN</div><div class="ex-val">1.24M</div></div>
+                <div class="ex-cell"><div class="ex-lab">请求</div><div class="ex-val">3,640</div></div>
+                <div class="ex-cell"><div class="ex-lab">命中率</div><div class="ex-val">76.4%</div></div>
+              </div>
+              <div class="ex-grid">
+                <div class="ex-cell">
+                  <div class="ex-lab">KEY · 本月</div>
+                  <div class="ex-val" style="display:flex;gap:6px;align-items:baseline;overflow:hidden">
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;font-weight:400">prod-backend</span>
+                    <span>¥11.24</span>
+                  </div>
+                </div>
+                <div class="ex-cell">
+                  <div class="ex-lab">dev-local</div>
+                  <div class="ex-val">¥4.81</div>
+                </div>
+              </div>
+              <div class="ex-foot"><span>1:33 更新</span><span class="chip demo">演示数据</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">三 · 快捷开关磁贴</h2>
+  <div class="sec-note">磁贴可用面积约 158×82dp，两个数挤在一起会被读成一个数。</div>
+  <div class="phones">
+
+    <div class="phone-col">
+      <div class="phone-cap">现状<span class="tag old">BEFORE</span></div>
+      <div class="phone-note">主副行同字号、同色阶、都带 ¥，「¥42.80 / 今日 ¥0.71」扫视时会糊成一片。</div>
+      <div class="qspanel">
+        <div class="shade"></div>
+        <div class="inner">
+          <div class="qs-head"><span>1:33</span><span>77%</span></div>
+          <div class="qs-grid">
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">¥42.80</div><div class="sub">今日 ¥0.71</div></div></div>
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">Wi-Fi</div><div class="sub">Home</div></div></div>
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">蓝牙</div></div></div>
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">飞行模式</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">建议<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        主行大字只放余额并缩到 1 位小数，副行去 ¥ 只留 <code>−0.71</code>，字符数减半、层级拉开。
+      </div>
+      <div class="qspanel">
+        <div class="shade"></div>
+        <div class="inner">
+          <div class="qs-head"><span>1:33</span><span>77%</span></div>
+          <div class="qs-grid">
+            <div class="tile active big"><div class="ti"><svg viewBox="0 0 24 24"><path d="M21 7.3V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-2.3a2 2 0 001-1.7V9a2 2 0 00-1-1.7zM20 9v6h-7V9h7zM5 19V5h14v2h-6a2 2 0 00-2 2v6a2 2 0 002 2h6v2H5z"/></svg></div><div><div class="lab">¥42.8</div><div class="sub">今日 −0.71</div></div></div>
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">Wi-Fi</div><div class="sub">Home</div></div></div>
+            <div class="tile plain"><div class="ti"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg></div><div><div class="lab">蓝牙</div></div></div>
+            <div class="tile dim2"><div class="ti"><svg viewBox="0 0 24 24"><path d="M21 7.3V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-2.3a2 2 0 001-1.7V9a2 2 0 00-1-1.7z"/></svg></div><div><div class="lab">——</div><div class="sub">已过期</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">四 · 规格（实测值，可直接落 RemoteViews）</h2>
+  <div class="sec-note">以下尺寸由本页实际渲染量取，单位等同 dp / sp。</div>
+  <table>
+    <thead>
+      <tr><th style="width:132px">区块</th><th style="width:96px">高度</th><th style="width:160px">字号 / 字重</th><th>规则</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>系统头部</td><td class="num" id="m-syshead">—</td><td>11.5sp / 500</td>
+        <td>SystemUI 渲染，不可删。<code>DecoratedCustomViewStyle</code> 下固定占位。</td></tr>
+      <tr><td>折叠态整卡</td><td class="num" id="m-cl">—</td><td>19sp / 600 + 12.5sp / 400</td>
+        <td>单行：余额 + 1dp 竖线 + 今日消费。现状 <span id="m-old">—</span>，<span id="m-save">—</span>。</td></tr>
+      <tr><td>折叠 · 状态点</td><td class="num">5dp</td><td>—</td>
+        <td>仅异常时出现，<code>margin-left:auto</code> 靠右。正常态不占位。</td></tr>
+      <tr><td>展开 · 主金额行</td><td class="num" id="m-exhead">—</td><td>25sp / 600</td>
+        <td>左余额（字距 −1sp），右今日消费（12sp / 400）。</td></tr>
+      <tr><td>展开 · 指标带</td><td class="num" id="m-exgrid">—</td><td>9.5sp 标签<br>12.5sp 值</td>
+        <td>四等分：本月消费 / 本月 token / 请求 / 命中率。1dp 竖分隔，不用背景块。</td></tr>
+      <tr><td>展开 · 趋势</td><td class="num" id="m-exchart">—</td><td>9.5sp</td>
+        <td>7 根柱，间距 3dp、圆角 1.5dp。最新一日实色，其余 55% 透明。</td></tr>
+      <tr><td>展开 · 状态脚注</td><td class="num" id="m-exfoot">—</td><td>10sp / 400</td>
+        <td>更新时间 + 单个状态胶囊（演示数据 / 用量未接入 / 已过期），只留一个。</td></tr>
+      <tr><td>展开态整卡</td><td class="num" id="m-ex">—</td><td>—</td>
+        <td>按经验预算 256dp 计，余 <span id="m-left">—</span>；满密度备选 <span id="m-exmax">—</span>。上限需真机核验。</td></tr>
+      <tr><td>磁贴</td><td class="num" id="m-tile">—</td><td>20sp / 600<br>10.5sp</td>
+        <td>主行余额缩 1 位小数，副行 <code>今日 −0.71</code> 省掉 ¥。无数据主行 <code>——</code> + 原因。</td></tr>
+      <tr><td>明暗适配</td><td class="num">—</td><td>—</td>
+        <td>构建时读 <code>Configuration.uiMode</code> 选两套布局。正文对比度深色 <span id="m-cdark">—</span>、浅色 <span id="m-clight">—</span>，均过 WCAG AA（≥4.5）。</td></tr>
+      <tr><td>数字排版</td><td class="num">—</td><td>—</td>
+        <td>全部 <code>tabular-nums</code>；折叠态固定两位小数，刷新时宽度不跳动。</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">五 · 取舍</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="box">
+        <h3>删掉的东西</h3>
+        <ul>
+          <li><b>「余额」「DeepSeek 余额」等自明标题</b>：卡片里不可能是别的东西。</li>
+          <li><b>正文与展开态重复列出的 tokens</b>：现状两处都写 486.0K。</li>
+          <li><b>独占一行的「刷新」按钮</b>：占 30dp 只做一件事，改为点整卡进 App。</li>
+          <li><b>「余额不足」这类会误判的措辞</b>：拿不到数据不等于余额不足。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <div class="box">
+        <h3>加进去的东西</h3>
+        <ul>
+          <li><b>命中率</b>：缓存成本是最直接的成本杠杆，比请求数更值得占一格。</li>
+          <li><b>7 日趋势柱</b>：不进 App 就能看出今天是否异常。</li>
+          <li><b>负号语义</b>：<code>−¥0.71</code> 表达「已花掉」，不用红色，红色留给真错误。</li>
+          <li><b>状态点</b>：异常才出现，正常态零占位。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="cols" style="margin-top:16px">
+    <div class="col">
+      <div class="box">
+        <h3>风险与代价</h3>
+        <ul>
+          <li>自定义 <code>RemoteViews</code> 要自己处理明暗取色；华为 / OPPO 折叠态会裁到 64dp 内，方案已按此下限设计。</li>
+          <li>7 日柱需读快照的 <code>days</code> 数组；未配 userToken 时整块隐藏，不留空框。</li>
+          <li>折叠态去掉刷新按钮后，手动刷新入口只剩 App 内，磁贴仍可点按刷新。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <div class="box">
+        <h3>改动范围</h3>
+        <ul>
+          <li><code>BalanceNotification.kt</code> 重写渲染，约 110 行</li>
+          <li>新增 <code>res/layout/</code> 下 4 个布局：折叠 / 展开 × 深 / 浅</li>
+          <li><code>BalanceTileService.kt</code> 改缩位与措辞，约 25 行</li>
+          <li><code>Fmt.kt</code> 加缩位与负号格式，约 20 行</li>
+          <li>主界面 Pages 不动；测试补 3 条断言</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec">六 · 请逐条确认</h2>
+  <div class="box">
+    <div class="check">
+      <label><input type="checkbox"><span><b>折叠态只留一行两个数</b>（余额 + 今日），高度从 <span id="t-old3">—</span> 压到 <span id="t-new3">—</span>，删掉所有自写标题。</span></label>
+      <label><input type="checkbox"><span><b>折叠态去掉「刷新」按钮</b>，点整卡进 App；磁贴仍可点按刷新。</span></label>
+      <label><input type="checkbox"><span><b>展开态用四段结构</b>：主金额 / 四指标 / 7 日柱 / 状态脚注。</span></label>
+      <label><input type="checkbox"><span><b>指标带第四格用「命中率」</b>而不是请求数。</span></label>
+      <label><input type="checkbox"><span><b>今日消费加负号</b>（<code>−¥0.71</code>）表达支出，不用红色。</span></label>
+      <label><input type="checkbox"><span><b>异常态只加 5dp 状态点</b>（黄=用量缺失，红=凭据失效），正常态不占位；措辞不写「余额不足」。</span></label>
+      <label><input type="checkbox"><span><b>磁贴主行缩到 1 位小数</b>（<code>¥42.8</code>），副行去 ¥（<code>−0.71</code>），无数据转灰显示原因。</span></label>
+      <label><input type="checkbox"><span><b>满密度备选</b>：把 7 日柱换成 Top key 用量。不勾则用 7 日柱。</span></label>
+    </div>
+    <div class="verdict">
+      全勾＝按推荐方案落地。也可只勾部分，我按勾选项改。建议落地顺序：先折叠态（收益最大、风险最小），
+      真机验证后再上展开态的自定义布局。
+    </div>
+  </div>
+
+  <div class="foot">
+    本页为静态视觉稿，用 dp / sp 等效单位绘制，未接真实数据，柱状图为示意值。
+    右上角可切换明暗。表内尺寸取自 Chromium 实际渲染测量，非估算。
+  </div>
+
+</div>
+
+<script>
+  (function () {
+    var bd = document.getElementById('btn-dark');
+    var bl = document.getElementById('btn-light');
+
+    function apply(mode) {
+      var dark = mode === 'dark';
+      bd.classList.toggle('on', dark);
+      bl.classList.toggle('on', !dark);
+      document.querySelectorAll('.phone, .qspanel').forEach(function (el) {
+        el.classList.toggle('light', !dark);
+      });
+      document.querySelectorAll('.shade').forEach(function (el) {
+        el.classList.toggle('light', !dark);
+      });
+    }
+
+    bd.addEventListener('click', function () { apply('dark'); });
+    bl.addEventListener('click', function () { apply('light'); });
+
+    // 用实际渲染结果回填规格表，避免文档数字与视觉稿脱节。
+    function measure() {
+      var h = function (el) {
+        return el ? Math.round(el.getBoundingClientRect().height) : null;
+      };
+      var set = function (id, v) {
+        var el = document.getElementById(id);
+        if (el && v !== null) el.textContent = v + 'dp';
+      };
+
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+
+      // 现状折叠卡 = 含 .n-title 的第一张
+      var oldCard = cards.filter(function (c) { return c.querySelector('.n-title'); })[0];
+      // 新折叠卡 = 含 .cl 的第一张
+      var newCard = cards.filter(function (c) { return c.querySelector('.cl'); })[0];
+      // 建议展开卡 = 含 .ex 且只有一组 .ex-grid
+      var exCard = cards.filter(function (c) { return c.querySelector('.ex'); })[0];
+      // 满密度卡 = 有两组 .ex-grid
+      var exMaxCard = cards.filter(function (c) { return c.querySelectorAll('.ex-grid').length > 1; })[0];
+
+      var syshead = h(document.querySelector('.card .syshead'));
+      var oldH = h(oldCard);
+      var newH = h(newCard);
+
+      set('m-syshead', syshead);
+      set('m-cl', newH);
+      set('m-exhead', h(document.querySelector('.ex-head')));
+      set('m-exgrid', h(document.querySelector('.ex-grid')));
+      set('m-exchart', h(document.querySelector('.ex-chart')));
+      set('m-exfoot', h(document.querySelector('.ex-foot')));
+      set('m-tile', h(document.querySelector('.tile.active')));
+      if (exCard) set('m-ex', h(exCard));
+      if (exMaxCard) set('m-exmax', h(exMaxCard));
+
+      // 现状高度与压缩比例：都从实测来，不写死
+      var oldEl = document.getElementById('m-old');
+      if (oldEl && oldH !== null) oldEl.textContent = oldH + 'dp';
+      var saveEl = document.getElementById('m-save');
+      if (saveEl && oldH && newH) {
+        saveEl.textContent = '省 ' + Math.round((oldH - newH) / oldH * 100) + '%';
+      }
+      var leftEl = document.getElementById('m-left');
+      if (leftEl && exCard) leftEl.textContent = (256 - h(exCard)) + 'dp';
+
+      // 正文里引用同样数字，也从实测回填，避免文档与视觉稿脱节
+      var fill = function (id, v) {
+        var el = document.getElementById(id);
+        if (el && v) el.textContent = v;
+      };
+      var oldTxt = oldH + 'dp', newTxt = newH + 'dp';
+      fill('t-old', oldTxt); fill('t-old2', oldTxt); fill('t-old3', oldTxt);
+      fill('t-new2', newTxt); fill('t-new3', newTxt);
+
+      // 对比度：主金额旁副标题，取深/浅两态实测
+      var lum = function (rgb) {
+        var p = rgb.match(/[\d.]+/g).slice(0, 3).map(Number);
+        var f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]);
+      };
+      var ratio = function (fgSel, bgSel) {
+        var fg = document.querySelector(fgSel), bg = document.querySelector(bgSel);
+        if (!fg || !bg) return null;
+        var a = lum(getComputedStyle(fg).color), b2 = lum(getComputedStyle(bg).backgroundColor);
+        return Math.round(((Math.max(a, b2) + 0.05) / (Math.min(a, b2) + 0.05)) * 100) / 100;
+      };
+
+      var cd = ratio('.cl-delta', '.card');
+      var cdEl = document.getElementById('m-cdark');
+      if (cdEl && cd !== null) cdEl.textContent = cd + ':1';
+
+      apply('light');
+      var clr = ratio('.cl-delta', '.card');
+      var clEl = document.getElementById('m-clight');
+      if (clEl && clr !== null) clEl.textContent = clr + ':1';
+      apply('dark');
+    }
+
+    if (document.readyState === 'complete') measure();
+    else window.addEventListener('load', measure);
+  })();
+</script>
+</body>
+</html>

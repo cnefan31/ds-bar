@@ -13,9 +13,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 常驻通知：展示余额与今日消费。
@@ -61,62 +58,13 @@ object BalanceNotification {
 
     fun build(context: Context, snapshot: JSONObject?): Notification {
         ensureChannel(context)
-        val title: String
-        val text: String
-        val big: String
-        if (snapshot == null) {
-            title = "DeepSeek 余额"
-            text = "尚未同步，点按打开"
-            big = text
-        } else {
-            val currency = snapshot.optString("currency", "CNY")
-            val balance = snapshot.optJSONObject("balance")
-            val info = balance?.optJSONArray("infos")?.optJSONObject(0)
-            val available = balance?.optBoolean("isAvailable", false) ?: false
-            val sym = if (currency == "USD") "$" else "¥"
-            val today = snapshot.optJSONObject("usage")?.optJSONObject("today")
-            val todayCost = today?.optDouble("cost", 0.0) ?: 0.0
-            val todayTokens = today?.optLong("tokens", 0L) ?: 0L
-            val month = snapshot.optJSONObject("usage")?.optJSONObject("monthTotal")
-            val monthCost = month?.optDouble("cost", 0.0) ?: 0.0
-            val balanceErr = snapshot.optJSONObject("balanceError")
-
-            if (info == null) {
-                // 拿不到余额时不能说「余额不足」，可能是未配置或接口异常。
-                title = "DeepSeek 余额"
-                val why = when (balanceErr?.optString("code")) {
-                    "missing_credential" -> "未配置 API Key"
-                    "auth_failed" -> "API Key 无效"
-                    "timeout" -> "请求超时"
-                    null -> "尚未同步"
-                    else -> "余额获取失败"
-                }
-                text = "$why · 点按打开"
-            } else {
-                title = "余额 ${sym}${Fmt.money(info.optDouble("totalBalance", 0.0))}"
-                text = "今日 ${sym}${Fmt.money(todayCost)} · ${Fmt.tokens(todayTokens)} tokens"
-            }
-
-            val lines = StringBuilder()
-            lines.append("本月消费 ${sym}${Fmt.money(monthCost)}")
-            lines.append("｜今日 ${Fmt.tokens(todayTokens)} tokens")
-            if (info != null && !available) lines.append("｜余额不足")
-            if (snapshot.optBoolean("demo", false)) lines.append("｜演示数据")
-            val err = snapshot.optJSONObject("usageError")
-            if (err != null) lines.append("｜用量未接入")
-            val ts = snapshot.optLong("fetchedAt", 0L)
-            if (ts > 0) {
-                lines.append("\n更新 ")
-                lines.append(SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(ts)))
-            }
-            big = lines.toString()
-        }
+        val content = NotificationText.build(snapshot)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_balance)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(big))
+            .setContentTitle(content.title)
+            .setContentText(content.text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content.big))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

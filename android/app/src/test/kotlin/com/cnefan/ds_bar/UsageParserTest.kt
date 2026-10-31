@@ -88,7 +88,7 @@ class UsageParserTest {
         assertEquals("42.80", Fmt.money(42.8))
         assertEquals("123.4", Fmt.money(123.44))
         assertEquals("1,234.5", Fmt.money(1234.5))
-        assertEquals("-1,234.5", Fmt.money(-1234.5))
+        assertEquals("\u22121,234.5", Fmt.money(-1234.5)) // U+2212 真减号
         assertEquals("12,346", Fmt.money(12345.67))
     }
 
@@ -111,5 +111,57 @@ class UsageParserTest {
     fun snapshotJson_isParseableAfterRoundTrip() {
         val json = JSONObject().put("version", 1).put("currency", "CNY")
         assertEquals("CNY", JSONObject(json.toString()).getString("currency"))
+    }
+
+    @Test
+    fun fmt_moneyCompact_keepsOneDecimal() {
+        assertEquals("42.8", Fmt.moneyCompact(42.8))
+        assertEquals("0.0", Fmt.moneyCompact(0.0))
+        assertEquals("1,234.5", Fmt.moneyCompact(1234.5))
+        assertEquals("12,346", Fmt.moneyCompact(12345.6))
+    }
+
+    @Test
+    fun fmt_spent_usesRealMinusAndNeverNegative() {
+        // U+2212 真减号，不是 ASCII '-'
+        assertEquals("\u22120.71", Fmt.spent(0.71))
+        assertEquals("0.00", Fmt.spent(0.0))
+        assertEquals("0.00", Fmt.spent(-5.0))
+        assertEquals("0.00", Fmt.spent(Double.NaN))
+    }
+
+    @Test
+    fun fmt_spentBare_omitsCurrencySymbol() {
+        assertEquals("\u22120.71", Fmt.spentBare(0.71))
+        assertEquals("0.00", Fmt.spentBare(0.0))
+        assertTrue(!Fmt.spentBare(1.5).contains("¥"))
+    }
+
+    @Test
+    fun fmt_percent_handlesMissingRatio() {
+        assertEquals("76.4%", Fmt.percent(0.764))
+        assertEquals("\u2014", Fmt.percent(null))
+        assertEquals("0.0%", Fmt.percent(0.0))
+    }
+
+    @Test
+    fun fmt_cacheHitRate_returnsNullWithoutInput() {
+        assertEquals(0.8, Fmt.cacheHitRate(80, 20)!!, 1e-9)
+        assertEquals(null, Fmt.cacheHitRate(0, 0))
+        assertEquals(1.0, Fmt.cacheHitRate(5, 0)!!, 1e-9)
+    }
+
+    @Test
+    fun fmt_count_usesGrouping() {
+        assertEquals("3,640", Fmt.count(3640))
+        assertEquals("0", Fmt.count(0))
+        assertEquals("1,234,567", Fmt.count(1234567))
+    }
+
+    @Test
+    fun fmt_currencySymbol_defaultsToCny() {
+        assertEquals("¥", Fmt.currencySymbol(null))
+        assertEquals("¥", Fmt.currencySymbol("CNY"))
+        assertEquals("$", Fmt.currencySymbol("USD"))
     }
 }

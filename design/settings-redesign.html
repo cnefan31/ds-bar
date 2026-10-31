@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DS Bar · 设置页重设计</title>
+<style>
+  :root{
+    --page:#f2f2f3;
+    --page-ink:#111113;
+    --page-mid:#58585f;
+    --page-low:#8e8e96;
+    --line:#dcdce0;
+    --panel:#ffffff;
+
+    --canvas:#010102;
+    --s1:#0F1011;
+    --s2:#141516;
+    --s3:#18191A;
+    --hair:#23252A;
+    --hair2:#34343A;
+
+    --ink:#F7F8F8;
+    --muted:#D0D6E0;
+    --subtle:#8A8F98;
+    --tertiary:#62666D;
+
+    --primary:#5E6AD2;
+    --primary-hover:#828FFF;
+    --ok:#27A644;
+    --warn:#D9A03A;
+    --bad:#E5484D;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+
+  body{
+    background:var(--page);color:var(--page-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased
+  }
+
+  .wrap{max-width:1240px;margin:0 auto;padding:44px 28px 96px}
+
+  .head h1{font-size:27px;font-weight:600;letter-spacing:-0.7px}
+  .head .sub{font-size:13px;color:var(--page-mid);margin-top:7px;max-width:620px;line-height:1.6}
+
+  .rule{height:1px;background:var(--line);margin:26px 0 34px}
+
+  .facts{background:#fff;border:1px solid var(--line);border-left:2px solid var(--primary);
+    border-radius:0 10px 10px 0;padding:15px 18px;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .facts b{color:var(--page-ink);font-weight:600}
+  .facts ol{margin:8px 0 0 17px}
+  .facts li{margin-bottom:5px}
+
+  h2.sec{font-size:12px;letter-spacing:1.1px;font-weight:600;color:var(--page-low);
+    margin:46px 0 10px;text-transform:uppercase}
+  h2.sec:first-of-type{margin-top:0}
+  .sec-note{font-size:12px;color:var(--page-low);margin:0 0 18px;line-height:1.65}
+
+  .phones{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .phone-col{width:372px;flex:none}
+  .phone-cap{font-size:12.5px;font-weight:600;margin-bottom:3px}
+  .phone-cap .tag{font-size:10.5px;font-weight:500;letter-spacing:0.4px;padding:1.5px 6px;
+    border-radius:4px;margin-left:7px;vertical-align:1.5px}
+  .tag.old{background:#e6e6e9;color:#6a6a72}
+  .tag.new{background:rgba(94,106,210,.12);color:var(--primary)}
+  .phone-note{font-size:11.5px;color:var(--page-low);margin-bottom:11px;min-height:32px;line-height:1.55}
+
+  .screen{
+    width:372px;height:820px;border-radius:24px;overflow:hidden;position:relative;
+    background:var(--canvas);color:var(--ink);
+    box-shadow:0 1px 1px rgba(0,0,0,.05),0 12px 34px rgba(20,20,30,.16);
+    display:flex;flex-direction:column
+  }
+  .screen.tall{height:1020px}
+
+  .statusbar{height:26px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:10.5px;color:var(--subtle);flex:none}
+
+  .appbar{display:flex;align-items:center;gap:8px;padding:8px 18px 12px;flex:none;
+    border-bottom:1px solid var(--hair)}
+  .appbar .title{font-size:16px;font-weight:600;letter-spacing:-0.3px}
+  .appbar .meta{font-size:10.5px;color:var(--tertiary);margin-top:1px}
+  .appbar .acts{margin-left:auto;display:flex;gap:14px;align-items:center;color:var(--subtle)}
+
+  .body{flex:1;overflow:hidden;padding:0 16px}
+
+  .navbar{flex:none;height:54px;border-top:1px solid var(--hair);
+    display:flex;align-items:center;justify-content:space-around;font-size:10px;color:var(--tertiary)}
+  .navbar .item{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .navbar .item svg{width:19px;height:19px;fill:currentColor}
+  .navbar .item.on{color:var(--primary-hover)}
+
+  /* 分区标题：与概览页同一语言 */
+  .grp{display:flex;align-items:baseline;margin:22px 0 10px}
+  .grp .t{font-size:11.5px;font-weight:600;letter-spacing:.2px;color:var(--muted)}
+  .grp .n{font-size:10.5px;color:var(--tertiary);margin-left:8px}
+  .grp .more{margin-left:auto;font-size:10.5px;color:var(--primary-hover)}
+  .grp:first-child{margin-top:16px}
+
+  /* 列表容器 */
+  .list{border:1px solid var(--hair);border-radius:10px;background:var(--s1);overflow:hidden}
+  .row{display:flex;align-items:center;gap:10px;padding:12px}
+  .row+.row{border-top:1px solid var(--hair)}
+  .row .main{flex:1;min-width:0}
+  .row .nm{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .sub{font-size:10.5px;color:var(--tertiary);margin-top:2px;
+    font-variant-numeric:tabular-nums;line-height:1.5}
+  .row .val{font-size:12.5px;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,Menlo,monospace;color:var(--muted)}
+  .row .chev{color:var(--tertiary);font-size:14px}
+  .dot{width:5px;height:5px;border-radius:50%;flex:none}
+
+  /* 开关 */
+  .sw{width:34px;height:20px;border-radius:10px;background:var(--s3);position:relative;flex:none;
+    border:1px solid var(--hair2)}
+  .sw i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:var(--tertiary);display:block;transition:none}
+  .sw.on{background:var(--primary);border-color:var(--primary)}
+  .sw.on i{left:16px;background:#fff}
+
+  /* 输入框 */
+  .field{border:1px solid var(--hair);border-radius:9px;background:var(--s1);
+    padding:10px 12px;font-size:12px;color:var(--subtle);display:flex;align-items:center;gap:8px}
+  .field .ph{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .field .eye{color:var(--tertiary);font-size:11px}
+  .field.mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:9px 14px;border-radius:8px;font-size:12px;font-weight:500}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.ghost{border:1px solid var(--hair2);color:var(--muted)}
+  .btn.text{color:var(--primary-hover);padding:9px 4px}
+
+  /* 徽章 */
+  .badge{font-size:10px;padding:1.5px 6px;border-radius:4px;font-weight:500;flex:none}
+  .badge.ok{background:rgba(39,166,68,.14);color:var(--ok)}
+  .badge.warn{background:rgba(217,160,58,.14);color:var(--warn)}
+  .badge.bad{background:rgba(229,72,77,.14);color:var(--bad)}
+  .badge.neutral{background:rgba(138,143,152,.14);color:var(--subtle)}
+
+  /* 提示条 */
+  .tip{border-radius:9px;padding:11px 12px;font-size:11px;line-height:1.6;color:var(--muted)}
+  .tip.warn{background:rgba(217,160,58,.07);border:1px solid rgba(217,160,58,.24)}
+  .tip.bad{background:rgba(229,72,77,.07);border:1px solid rgba(229,72,77,.24)}
+  .tip .h{display:flex;align-items:center;gap:6px;font-weight:500;margin-bottom:5px}
+  .tip .h .dot{flex:none}
+
+  /* 内联说明 */
+  .hint{font-size:10.5px;color:var(--tertiary);line-height:1.65;margin-top:8px}
+
+  /* 分段控件 */
+  .seg{display:flex;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:var(--s1)}
+  .seg div{flex:1;text-align:center;padding:8px 0;font-size:11.5px;color:var(--subtle)}
+  .seg div.on{background:var(--s3);color:var(--ink);font-weight:500}
+  .seg div+div{border-left:1px solid var(--hair)}
+
+  /* 步进数值 */
+  .step{display:flex;align-items:center;gap:0;border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+  .step .b{width:34px;height:32px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;color:var(--subtle);background:var(--s1)}
+  .step .v{flex:1;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,Menlo,monospace;background:var(--s2);height:32px;
+    display:flex;align-items:center;justify-content:center}
+  .step .b+.v{border-left:1px solid var(--hair)}
+  .step .v+.b{border-left:1px solid var(--hair)}
+
+  /* 旧版样式 */
+  .b-sec{font-size:11px;letter-spacing:.8px;color:var(--subtle);margin:16px 0 10px;font-weight:500}
+  .b-card{background:var(--s1);border:1px solid var(--hair);border-radius:12px;padding:16px;margin-bottom:14px}
+  .b-badge{font-size:10.5px;padding:2.5px 7px;border-radius:5px}
+  .b-badge.ok{background:rgba(39,166,68,.12);color:var(--ok)}
+  .b-badge.warn{background:rgba(217,160,58,.12);color:var(--warn)}
+  .b-slider{height:2px;background:var(--s3);border-radius:1px;position:relative;margin:16px 0 8px}
+  .b-slider i{position:absolute;left:0;top:0;height:2px;width:38%;background:var(--primary);display:block}
+  .b-slider b{position:absolute;left:38%;top:-6px;width:14px;height:14px;border-radius:50%;
+    background:#fff;display:block;transform:translateX(-50%)}
+  .b-sw{width:36px;height:21px;border-radius:11px;background:var(--primary);position:relative;flex:none}
+  .b-sw i{position:absolute;top:2.5px;right:2.5px;width:16px;height:16px;border-radius:50%;background:#fff;display:block}
+  .b-row{display:flex;align-items:center;gap:10px;padding:10px 0}
+  .b-row+.b-row{border-top:1px solid var(--hair)}
+
+  /* 结果展示 */
+  .test{border:1px solid var(--hair);border-radius:9px;background:var(--s1);padding:11px 12px}
+  .test .line{display:flex;align-items:center;gap:8px;font-size:11.5px}
+  .test .line+.line{margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)}
+  .test .line .k{flex:1;color:var(--muted)}
+  .test .line .v{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--subtle)}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;letter-spacing:0.5px;color:var(--page-low);font-weight:600;background:#fafafb}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+    background:#ececef;padding:1px 5px;border-radius:4px}
+
+  .cols{display:flex;gap:26px;flex-wrap:wrap}
+  .col{flex:1;min-width:300px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  .box h3{font-size:13px;font-weight:600;margin-bottom:9px}
+  .box ul{list-style:none;font-size:12.5px;color:var(--page-mid);line-height:1.7}
+  .box li{padding-left:15px;position:relative}
+  .box li::before{content:"";position:absolute;left:2px;top:9px;width:4px;height:4px;
+    border-radius:50%;background:var(--page-low)}
+  .box li b{color:var(--page-ink);font-weight:600}
+
+  .check{display:flex;flex-direction:column;gap:11px}
+  .check label{display:flex;gap:10px;font-size:12.5px;color:var(--page-mid);align-items:flex-start;line-height:1.55}
+  .check input{margin-top:2.5px;accent-color:var(--primary);flex:none}
+  .check b{color:var(--page-ink);font-weight:600}
+
+  .verdict{margin-top:14px;font-size:12.5px;color:var(--page-mid);background:#f7f7f8;
+    border-left:2px solid var(--primary);border-radius:0 8px 8px 0;padding:11px 14px;line-height:1.7}
+
+  .footnote{margin-top:52px;font-size:11.5px;color:var(--page-low);line-height:1.75}
+
+  @media (max-width:860px){.wrap{padding:28px 16px 64px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1>DS Bar · 设置页重设计</h1>
+    <div class="sub">
+      与已批准的概览页同一套设计语言：近黑画布、单一强调色、细描边容器、字号跨级分层。
+      重点解决「凭据区域信息混乱、状态不可见、危险操作缺乏约束」三类问题。
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="facts">
+    <b>先说清设置页现在的四个具体问题（都来自现有代码）：</b>
+    <ol>
+      <li><b>凭据区把两件不同的事塞在一起</b>：平台 userToken 与 API Key 都叫「凭据」，但前者解锁用量、后者解锁余额，混在一张卡里，用户不知道先填哪个、填了能多看到什么。</li>
+      <li><b>没有任何「测一下」的入口</b>：粘贴 userToken 后只能回概览页下拉刷新才知道对不对，错了也只看到一个笼统的「用量不可用」。</li>
+      <li><b>Key 列表只有名称和删除按钮</b>：没有打码后的 key 尾号，无法核对是哪一把；删除是直接弹确认框，没有二次约束，误删就得重新粘贴。</li>
+      <li><b>「数据来源」三行是纯文本装饰</b>：写着 <code>platform.deepseek.com/api/v0/usage/*</code>，但不能点、不告诉你现在通不通。</li>
+    </ol>
+  </div>
+
+  <h2 class="sec">一 · 现状 vs 建议（首屏）</h2>
+  <div class="phones">
+
+    <div class="phone-col">
+      <div class="phone-cap">现状<span class="tag old">BEFORE</span></div>
+      <div class="phone-note">
+        五张卡顺序平铺；凭据卡里两个输入框 + 明文说明 + 两个按钮挤在一起；开关用系统默认样式，与整体深色不协调。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:40</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">设置</div></div>
+          <div class="acts"><span>←</span></div>
+        </div>
+        <div class="body">
+          <div class="b-sec">凭据</div>
+          <div class="b-card">
+            <div style="display:flex;align-items:center">
+              <span style="font-size:13.5px;font-weight:500">平台 userToken</span>
+              <span class="b-badge warn" style="margin-left:auto">未配置</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.6">
+              用于读取 token 用量。获取：platform.deepseek.com → F12 → Local Storage 复制 userToken。
+            </div>
+            <div style="margin-top:12px;border:1px solid var(--hair);border-radius:10px;padding:12px;
+              font-size:13px;color:var(--tertiary)">粘贴 userToken</div>
+            <div style="margin-top:8px;border:1px solid var(--hair);border-radius:10px;padding:12px;
+              font-size:12px;color:var(--tertiary)">Cookie（可选）</div>
+            <div style="display:flex;gap:10px;margin-top:14px">
+              <div style="flex:1;background:var(--primary);color:#fff;text-align:center;
+                padding:12px;border-radius:10px;font-size:13px">保存凭据</div>
+              <div style="border:1px solid var(--hair2);color:var(--ink);padding:12px 16px;
+                border-radius:10px;font-size:13px">打开平台</div>
+            </div>
+          </div>
+          <div class="b-sec">API Keys</div>
+          <div class="b-card">
+            <div class="b-row">
+              <span style="font-size:13px;flex:1">prod-backend</span>
+              <span style="font-size:16px;color:var(--tertiary)">🗑</span>
+            </div>
+            <div class="b-row">
+              <span style="font-size:13px;flex:1">dev-local</span>
+              <span style="font-size:16px;color:var(--tertiary)">🗑</span>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--tertiary);line-height:1.55">
+              余额为账户级，同账号所有 key 共享；分 key 用量按平台 key 名称匹配。
+            </div>
+          </div>
+          <div class="b-sec">刷新</div>
+          <div class="b-card">
+            <div style="display:flex;align-items:center">
+              <span style="font-size:13.5px;flex:1">自动刷新间隔</span>
+              <span style="font-family:monospace;font-size:13px;color:var(--muted)">60 分钟</span>
+            </div>
+            <div class="b-slider"><i></i><b></b></div>
+            <div style="font-size:11px;color:var(--tertiary);line-height:1.5">
+              后台刷新由系统调度，实际间隔可能被系统延后以省电（最短 15 分钟）。
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-cap">建议 · 首屏<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        按「解锁什么」重排：连接状态置顶（一眼看出哪部分能用）→ 数据源凭据 → API Key → 外观与刷新。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:40</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">设置</div><div class="meta">凭据只存本机</div></div>
+          <div class="acts"><span>←</span></div>
+        </div>
+        <div class="body">
+
+          <!-- 连接状态总览 -->
+          <div class="grp"><span class="t">连接状态</span></div>
+          <div class="list">
+            <div class="row">
+              <span class="dot" style="background:var(--ok)"></span>
+              <div class="main">
+                <div class="nm">余额</div>
+                <div class="sub">已连接 · 2 个 Key 可用</div>
+              </div>
+              <span class="badge ok">正常</span>
+            </div>
+            <div class="row">
+              <span class="dot" style="background:var(--bad)"></span>
+              <div class="main">
+                <div class="nm">用量与消费</div>
+                <div class="sub">userToken 已过期（401）</div>
+              </div>
+              <span class="badge bad">需处理</span>
+            </div>
+          </div>
+          <div class="hint">余额用官方 API，只需 API Key；用量走平台网页接口，需要 userToken。两者互不影响。</div>
+
+          <!-- 平台会话 -->
+          <div class="grp"><span class="t">平台会话</span><span class="n">解锁用量</span></div>
+          <div class="list">
+            <div class="row" style="align-items:flex-start">
+              <div class="main">
+                <div class="nm">userToken</div>
+                <div class="sub">2 小时前更新</div>
+              </div>
+              <span class="badge nfront" style="font-size:10px;padding:1.5px 6px;border-radius:4px;
+                background:rgba(138,143,152,.14);color:var(--subtle)">已配置</span>
+            </div>
+            <div class="row" style="padding-top:0;border:0">
+              <div class="field mono" style="flex:1"><span class="ph">••••••••••••••••3f9a</span><span class="eye">显示</span></div>
+            </div>
+            <div class="row" style="padding-top:10px">
+              <div class="btn ghost" style="flex:1">粘贴新值</div>
+              <div class="btn primary" style="flex:1">测试连接</div>
+            </div>
+          </div>
+          <div class="hint">从 platform.deepseek.com 登录后，F12 → Application → Local Storage 复制 userToken。</div>
+
+          <!-- API Key -->
+          <div class="grp"><span class="t">API Key</span><span class="n">解锁余额</span><span class="more">＋ 添加</span></div>
+          <div class="list">
+            <div class="row">
+              <span class="dot" style="background:var(--ok)"></span>
+              <div class="main">
+                <div class="nm">prod-backend</div>
+                <div class="sub">sk-ab…9f2c · 本月 7.40M tokens</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <span class="dot" style="background:var(--ok)"></span>
+              <div class="main">
+                <div class="nm">dev-local</div>
+                <div class="sub">sk-7f…21ae · 本月 3.28M tokens</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">二 · 下半屏与子页</h2>
+  <div class="sec-note">刷新、通知、关于三块；以及「测试连接」的结果页与 Key 的详情子页。</div>
+  <div class="phones">
+
+    <!-- 下半屏 -->
+    <div class="phone-col">
+      <div class="phone-cap">建议 · 下半屏<span class="tag new">AFTER</span></div>
+      <div class="phone-note">
+        滑块换成步进 + 预设分段：滑块的 23 个刻度实际只有 15/30/60/120 分钟几个值有意义，拖动反而难对准。
+      </div>
+      <div class="screen tall">
+        <div class="statusbar"><span>2:40</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">设置</div><div class="meta">凭据只存本机</div></div>
+          <div class="acts"><span>←</span></div>
+        </div>
+        <div class="body">
+          <div class="grp"><span class="t">刷新</span></div>
+          <div class="list">
+            <div class="row" style="flex-direction:column;align-items:stretch;gap:9px">
+              <div style="display:flex;align-items:baseline">
+                <span style="font-size:12.5px;font-weight:500">后台自动刷新</span>
+                <span style="margin-left:auto;font-family:monospace;font-size:11.5px;color:var(--subtle)">每 60 分钟</span>
+              </div>
+              <div class="seg">
+                <div>15 分钟</div><div>30 分钟</div><div class="on">1 小时</div><div>6 小时</div>
+              </div>
+              <div class="hint" style="margin:0">系统省电策略可能推迟实际执行时间；这是系统行为，App 无法绕过。</div>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">下拉通知栏显示余额</div>
+                <div class="sub">折叠一行两个数，展开四项指标</div>
+              </div>
+              <div class="sw on"><i></i></div>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">快捷设置磁贴</div>
+                <div class="sub">面板显示余额，点按刷新</div>
+              </div>
+              <div class="sw on"><i></i></div>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">把磁贴加入面板</div>
+                <div class="sub">打开系统快捷设置编辑页</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="grp"><span class="t">显示</span></div>
+          <div class="list">
+            <div class="row" style="opacity:.42">
+              <div class="main">
+                <div class="nm">金额小数位 <span style="font-size:9.5px;color:var(--warn);
+                  border:1px solid rgba(217,160,58,.4);border-radius:3px;padding:0 4px;margin-left:4px">建议砍掉</span></div>
+                <div class="sub">缩位规则已统一，拆成开关会让各处显示不一致</div>
+              </div>
+              <span class="val">2 位</span>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">演示数据</div>
+                <div class="sub">用虚构数字预览全部页面</div>
+              </div>
+              <div class="sw"><i></i></div>
+            </div>
+          </div>
+
+          <div class="grp"><span class="t">数据来源</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="main">
+                <div class="nm">账户余额</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">api.deepseek.com/user/balance</div>
+              </div>
+              <span class="badge ok">官方</span>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">用量与消费</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">platform.deepseek.com/api/v0/usage</div>
+              </div>
+              <span class="badge warn">网页接口</span>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">分 Key 明细</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">…/usage/export</div>
+              </div>
+              <span class="badge warn">网页接口</span>
+            </div>
+          </div>
+          <div class="hint">
+            标「网页接口」的两项非官方公开 API，DeepSeek 改版可能失效；失效时余额不受影响。
+            凭据只存本机应用私有存储，所有请求由手机直连 deepseek.com。
+          </div>
+          <div style="height:10px"></div>
+        </div>
+        <div class="navbar">
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 测试连接的结果 -->
+    <div class="phone-col">
+      <div class="phone-cap">测试连接 · 结果<span class="tag new">NEW</span></div>
+      <div class="phone-note">
+        现在的流程是「粘贴 → 回概览 → 下拉 → 看是否报错」。改成粘完就能就地测，逐项告诉你是哪一环失败。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:40</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">测试连接</div></div>
+          <div class="acts"><span>关闭</span></div>
+        </div>
+        <div class="body">
+          <div style="margin-top:18px;display:flex;align-items:center;gap:9px">
+            <span class="dot" style="background:var(--warn);width:7px;height:7px"></span>
+            <span style="font-size:15px;font-weight:600;letter-spacing:-.2px">部分可用</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.6">
+            余额正常，用量接口失败。按下面提示处理后重新测试即可。
+          </div>
+
+          <div style="margin-top:18px" class="test">
+            <div class="line">
+              <span class="dot" style="background:var(--ok)"></span>
+              <span class="k">API Key · prod-backend</span>
+              <span class="v">200 · ¥42.80</span>
+            </div>
+            <div class="line">
+              <span class="dot" style="background:var(--ok)"></span>
+              <span class="k">API Key · dev-local</span>
+              <span class="v">200 · 有效</span>
+            </div>
+            <div class="line">
+              <span class="dot" style="background:var(--bad)"></span>
+              <span class="k">平台 userToken</span>
+              <span class="v">401 未授权</span>
+            </div>
+            <div class="line">
+              <span class="dot" style="background:var(--tertiary)"></span>
+              <span class="k">用量导出（分 Key）</span>
+              <span class="v">已跳过</span>
+            </div>
+          </div>
+
+          <div class="tip bad" style="margin-top:14px">
+            <div class="h"><span class="dot" style="background:var(--bad)"></span>userToken 返回 401</div>
+            说明登录态已过期。请重新登录平台复制新的 userToken；若仍失败，补上同域 Cookie 再试。
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <div class="btn primary" style="flex:1">重新测试</div>
+            <div class="btn ghost" style="flex:1">重新粘贴</div>
+          </div>
+
+          <div class="hint">
+            接口地址：<code style="font-family:ui-monospace,monospace">/api/v0/usage/amount</code>。
+            该接口非官方公开 API，返回结构可能随平台改版变化。
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key 详情子页 -->
+    <div class="phone-col">
+      <div class="phone-cap">Key 详情子页<span class="tag new">NEW</span></div>
+      <div class="phone-note">
+        删除从「列表行上的垃圾桶图标」移到子页底部，并要求输入 key 尾号确认，避免误删。
+      </div>
+      <div class="screen">
+        <div class="statusbar"><span>2:40</span><span>77%</span></div>
+        <div class="appbar">
+          <div><div class="title">prod-backend</div><div class="meta">API Key</div></div>
+          <div class="acts"><span>←</span></div>
+        </div>
+        <div class="body">
+          <div class="grp"><span class="t">凭据</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="main">
+                <div class="nm">Key</div>
+                <div class="sub" style="font-family:ui-monospace,monospace">sk-ab••••••••••••9f2c</div>
+              </div>
+              <span style="font-size:11px;color:var(--primary-hover)">显示</span>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">名称</div>
+                <div class="sub">用于与平台「按 API Key」对账，建议保持一致</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="main">
+                <div class="nm">状态</div>
+                <div class="sub">上次校验 2 分钟前</div>
+              </div>
+              <span class="badge ok">有效</span>
+            </div>
+          </div>
+
+          <div class="grp"><span class="t">本月用量</span><span class="n">来自平台导出</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="main"><div class="nm">消费</div></div>
+              <span class="val">¥11.24</span>
+            </div>
+            <div class="row">
+              <div class="main"><div class="nm">Tokens</div></div>
+              <span class="val">7.40M</span>
+            </div>
+            <div class="row">
+              <div class="main"><div class="nm">请求</div></div>
+              <span class="val">2,160</span>
+            </div>
+            <div class="row">
+              <div class="main"><div class="nm">今日消费</div></div>
+              <span class="val">−¥0.42</span>
+            </div>
+          </div>
+          <div class="hint">余额是账户级，此页不显示「该 Key 的余额」——那不存在。</div>
+
+          <div style="margin-top:26px" class="list">
+            <div class="row">
+              <div class="main">
+                <div class="nm" style="color:var(--bad)">删除此 Key</div>
+                <div class="sub">仅从本机移除，不影响平台上的 Key</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="item"><svg viewBox="0 0 24 24"><path d="M3 13h4l3 8 4-16 3 8h4"/></svg><span>概览</span></div>
+          <div class="item on"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg><span>设置</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2 class="sec">三 · 关键改动对照</h2>
+  <table>
+    <thead>
+      <tr><th style="width:150px">问题</th><th style="width:250px">现状做法</th><th>新做法</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>不知道哪部分能用</td><td class="num">要回概览页看是否报错</td>
+        <td>设置页顶部「连接状态」两块：余额 / 用量，各自一个语义点 + 一句人话。</td></tr>
+      <tr><td>两件凭据混在一起</td><td class="num">同在一张「凭据」卡</td>
+        <td>拆成「平台会话（解锁用量）」与「API Key（解锁余额）」，标题右侧直接写明解锁什么。</td></tr>
+      <tr><td>填完不知道对不对</td><td class="num">无测试入口</td>
+        <td>「测试连接」弹层逐项列出：每个 Key 的状态码与余额、userToken 状态、导出是否跳过。</td></tr>
+      <tr><td>分不清哪个 Key</td><td class="num">只显示名称</td>
+        <td>列表行显示 <code>sk-ab…9f2c</code> 打码尾号 + 本月 token 量。</td></tr>
+      <tr><td>删除太容易误触</td><td class="num">行内垃圾桶 → 确认框</td>
+        <td>移到 Key 详情子页底部，确认框要求输入 key 尾 4 位。<b>此项需新增原生方法支持打码回传。</b></td></tr>
+      <tr><td>刷新间隔靠拖</td><td class="num">23 刻度滑块</td>
+        <td>四档分段控件（15 分 / 30 分 / 1 时 / 6 时），点选即生效。</td></tr>
+      <tr><td>数据来源不能点</td><td class="num">纯文本三行</td>
+        <td>保留地址文本，但改用「官方 / 网页接口」徽章标注稳定性，并说明失效影响面。</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">四 · 落地前提（三项需要改原生层）</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="box">
+        <h3>新增的三个能力</h3>
+        <ul>
+          <li><b>打码 key 回传</b>：现在 <code>configJson()</code> 的 keys 只含 <code>id</code> 与 <code>name</code>，<code>ApiKeyEntry.masked</code> 已实现但没输出。加一个字段即可，无风险。</li>
+          <li><b>测试连接</b>：新增 <code>testConnection</code> 通道方法，逐项返回 <code>{target, ok, code, detail}</code>。复用现有 <code>DsHttp</code> 与 <code>DsRepository</code>，不动取数逻辑。</li>
+          <li><b>删除需输入尾号</b>：属于纯 Dart 层交互，不需要原生改动。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <div class="box">
+        <h3>不做的</h3>
+        <ul>
+          <li><b>不做多账号切换</b>：当前数据模型是单账号，加多账号要改快照结构与通知逻辑，属另一件事。</li>
+          <li><b>不做凭据导出/导入</b>：会让「只存本机」的承诺变模糊。</li>
+          <li><b>不做「金额小数位」设置项</b>：稿里画了但建议砍掉——缩位规则已在 <code>Fmt</code> 里统一，暴露成开关只会让各处显示不一致。<b>请特别确认这一条。</b></li>
+          <li><b>不做加密存储</b>：当前用应用私有 SharedPreferences。加 EncryptedSharedPreferences 需引入 security-crypto，属可选项，本次不做。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec">五 · 请逐条确认</h2>
+  <div class="box">
+    <div class="check">
+      <label><input type="checkbox"><span><b>设置页顶部加「连接状态」</b>：余额 / 用量两块，各自语义点 + 一句人话。</span></label>
+      <label><input type="checkbox"><span><b>凭据拆成两段</b>：「平台会话（解锁用量）」与「API Key（解锁余额）」，标题写明解锁什么。</span></label>
+      <label><input type="checkbox"><span><b>加「测试连接」</b>：弹层逐项列出每个 Key 与 userToken 的状态码。</span></label>
+      <label><input type="checkbox"><span><b>Key 列表显示打码尾号</b>（<code>sk-ab…9f2c</code>）与本月 token 量。</span></label>
+      <label><input type="checkbox"><span><b>Key 删除移到详情子页</b>，确认时要求输入尾 4 位。</span></label>
+      <label><input type="checkbox"><span><b>刷新间隔改四档分段</b>（15 分 / 30 分 / 1 时 / 6 时）替代滑块。</span></label>
+      <label><input type="checkbox"><span><b>开关换成自绘样式</b>，与深色语言一致，不用系统默认。</span></label>
+      <label><input type="checkbox"><span><b>砍掉「金额小数位」设置项</b>（稿里画了但不建议做，理由见上）。</span></label>
+      <label><input type="checkbox"><span><b>数据来源保留但加「官方 / 网页接口」徽章</b>，并说明失效影响面。</span></label>
+    </div>
+    <div class="verdict">
+      全勾＝按此稿改设置页。改动范围：<code>settings_page.dart</code>（重写为四段结构 + 两个子页）、
+      <code>common.dart</code>（自绘开关、分段控件、测试结果行）、
+      <code>native_bridge.dart</code> + <code>MainActivity.kt</code> + <code>DsPrefs.kt</code>（打码回传、<code>testConnection</code>）。
+      概览页与数据层不动。
+    </div>
+  </div>
+
+  <div class="footnote">
+    本页为静态视觉稿，按 372×820 逻辑像素绘制，未接真实数据。状态码与错误文案为示意，实际以接口返回为准。
+    userToken 有效期接口不返回，故界面只显示「上次更新」，不显示剩余天数。
+  </div>
+
+</div>
+</body>
+</html>
