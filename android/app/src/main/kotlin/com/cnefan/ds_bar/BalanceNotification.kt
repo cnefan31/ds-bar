@@ -30,11 +30,6 @@ object BalanceNotification {
      */
     const val NOTIFICATION_ID = 1101
 
-    private const val L_COLLAPSED = R.layout.notification_collapsed
-    private const val L_COLLAPSED_LIGHT = R.layout.notification_collapsed_light
-    private const val L_EXPANDED = R.layout.notification_expanded
-    private const val L_EXPANDED_LIGHT = R.layout.notification_expanded_light
-
     /** 深浅色判定：读系统 uiMode，两套布局各自带死文字色，避免运行时改色。 */
     private fun isNight(context: Context): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
@@ -104,13 +99,15 @@ object BalanceNotification {
         val content = NotificationText.build(snapshot)
 
         val light = !isNight(context)
+        // 直接引用 R.layout.*，不要缓存成 const：const 会在编译期内联，
+        // 增量构建后可能与实际资源 id 不一致，导致 layoutId=0 而 inflate 失败。
         val collapsed = RemoteViews(
             context.packageName,
-            if (light) L_COLLAPSED_LIGHT else L_COLLAPSED
+            if (light) R.layout.notification_collapsed_light else R.layout.notification_collapsed
         )
         val expanded = RemoteViews(
             context.packageName,
-            if (light) L_EXPANDED_LIGHT else L_EXPANDED
+            if (light) R.layout.notification_expanded_light else R.layout.notification_expanded
         )
         bindCollapsed(collapsed, content)
         bindExpanded(expanded, content)
