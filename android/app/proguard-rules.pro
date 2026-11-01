@@ -1,7 +1,11 @@
 # DS Bar 发布构建的 ProGuard/R8 规则。
 
 # --- Flutter ---
--keep class io.flutter.** { *; }
+# Flutter 官方 flutter_proguard_rules.pro 已随构建自动应用（只 -dontwarn 与
+# 保留 FlutterPlugin 实现类），无需再写 -keep class io.flutter.** { *; }。
+# 但嵌入层大量按类名反射（FlutterActivity/FlutterFragment 注册、FlutterJNI
+# 加载、插件登记），所以只允许裁剪成员、不允许改类名。
+-keepnames class io.flutter.** { *; }
 -dontwarn io.flutter.**
 
 # --- RemoteViews 自定义通知 ---

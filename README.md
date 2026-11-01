@@ -92,7 +92,7 @@ bash scripts/build-release.sh                   # 发布包（体积已优化，
 发布包请用 `scripts/build-release.sh`，不要直接跑 `flutter build apk --release`：
 脚本固化了 `--target-platform android-arm64` 与 `--split-debug-info`，且因
 `--target-platform` 是唯一有效的 ABI 裁剪入口（写在 `gradle.properties` 或
-`defaultConfig.ndk.abiFilters` 均无效），漏掉它包体会从 7.3MB 涨到 21.5MB。
+`defaultConfig.ndk.abiFilters` 均无效），漏掉它包体会从 7.2MB 涨到 21.5MB。
 
 Android 原生单测：
 
@@ -126,19 +126,23 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 
 ## 发布包体积
 
-基线 49.8MB → 现 7.3MB（`7,642,500` 字节），削减 85%。逐项来源：
+基线 49.8MB → 现 7.2MB（`7,517,106` 字节），削减 84.9%。逐项来源：
 
 | 措施 | 效果 | 代价 |
 | --- | --- | --- |
 | 只打 arm64-v8a | 49.8 → 17.5MB | 不含 32 位与 x86；需要时加 `--target-platform android-arm,android-arm64` |
-| `.so` 改为可压缩（`useLegacyPackaging`） | 17.5 → 8.2MB | 安装时解压，占用磁盘 23MB（APK 本身 7.6MB） |
+| `.so` 改为可压缩（`useLegacyPackaging`） | 17.5 → 8.2MB | 安装时解压，占用磁盘 23MB |
 | 移除 WorkManager，改用平台 `JobScheduler` | dex 1.48 → 1.02MB | 无 |
+| ProGuard 去掉 `-keep class io.flutter.** { *; }`，改用 `-keepnames` | dex 1.02 → 0.73MB | 类名保留、成员可裁；官方 `flutter_proguard_rules.pro` 已覆盖真实反射需求 |
 | 移除 `androidx.core`（用平台 Notification API） | 计入上项 | 无 |
 | 移除未使用的 `cupertino_icons` | 0.26MB 字体 | 无 |
 | `--split-debug-info` | 再降 0.2MB | 崩溃堆栈需 `flutter symbolize` 配合 `build/symbols` |
 
-第三方依赖现状：运行时依赖为**零**（只剩 Flutter 自带引擎与 Kotlin 标准库）。
-Kotlin 侧不接受任何 `implementation(...)`，`RefreshJobServiceTest` 会守住这条线。
+第三方依赖现状：本项目自己引入的运行时依赖为**零**；构建图里剩下的
+`kotlin-stdlib` 与 `kotlinx-coroutines` 是 Flutter 嵌入层经
+`androidx.lifecycle:lifecycle-common` 传递进来的，删不掉。
+Kotlin 侧不接受任何 `implementation(...)`，`RefreshJobServiceTest` 会守住这条线；
+同一测试也会拦住「把 `-keep class io.flutter.** { *; }` 加回来」这种让 dex 胖一倍的回退。
 
 `libflutter.so` 与 `libapp.so` 的 ELF `PT_LOAD` 对齐为 64KB，满足 Android 15+
 的 16KB page size 要求。
@@ -169,10 +173,10 @@ Kotlin 侧不接受任何 `implementation(...)`，`RefreshJobServiceTest` 会守
 | 层次 | 命令 | 结果 |
 | --- | --- | --- |
 | Dart 单测 + 界面渲染 | `flutter test` | 37 条全过 |
-| Kotlin 单测 | `cd android && ./gradlew :app:testDebugUnitTest` | 57 条全过 |
+| Kotlin 单测 | `cd android && ./gradlew :app:testDebugUnitTest` | 58 条全过 |
 | 真机端到端 | `flutter test integration_test/native_e2e_test.dart -d <id>` | 3 条全过（HLK AL10 / Android 10） |
 | 静态检查 | `flutter analyze` | No issues found |
-| 构建 | `bash scripts/build-release.sh` | 发布包 7.3MB（基线 49.8MB） |
+| 构建 | `bash scripts/build-release.sh` | 发布包 7.2MB（基线 49.8MB） |
 
 覆盖范围：
 

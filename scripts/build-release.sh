@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # 发布包构建脚本：把体积优化参数固化下来，避免每次手敲、也避免漏参数。
 #
-# 各参数的作用与实测收益（基线 49.8MB → 7.6MB）：
+# 各参数的作用与实测收益（基线 49.8MB → 7.2MB）：
 #   --target-platform android-arm64   只打 arm64。libflutter.so 每 ABI 一份且未压缩
 #                                     时 8.6–13MB，三 ABI 全打 22.5MB vs 单 ABI 7.6MB。
 #   --split-debug-info                Dart 符号表外置到 build/symbols，体积再降约 0.2MB。
 #   压缩 .so（见 build.gradle.kts useLegacyPackaging） 16.7MB → 7.1MB。
 #   去掉 WorkManager/Room/coroutines/AndroidX        dex 1.48MB → 1.02MB。
+#   ProGuard 用 -keepnames 取代 -keep class io.flutter.** { *; }  dex 1.02MB → 0.73MB。
 #
 # 注意：--target-platform 必须由命令行给出。写在 gradle.properties 或
 # defaultConfig.ndk.abiFilters 都无效——Flutter 引擎库由

@@ -84,4 +84,20 @@ class RefreshJobServiceTest {
             t.contains("coerceIn(15, 1440)")
         )
     }
+
+    @Test
+    fun `proguard 不对 io_flutter 用宽泛 keep`() {
+        val pg = File(moduleDir(), "proguard-rules.pro").readText()
+        val ruleLines = pg.lines().filterNot { it.trim().startsWith("#") }
+        assertFalse(
+            "宽泛 -keep class io.flutter.** { *; } 会让 485 个类全部免裁剪，dex 多出约 452KB；" +
+                "官方 flutter_proguard_rules.pro 已覆盖真正的反射需求",
+            ruleLines.any { it.contains("-keep class io.flutter.**") }
+        )
+        assertTrue(
+            "嵌入层按类名反射，必须保留类名（可裁剪成员）",
+            pg.contains("-keepnames class io.flutter.**")
+        )
+        assertTrue("仍需压制 io.flutter 的 dontwarn", pg.contains("-dontwarn io.flutter.**"))
+    }
 }
