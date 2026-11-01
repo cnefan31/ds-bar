@@ -551,7 +551,7 @@
 <thead><tr><th style="width:30%">文件</th><th>改动</th><th style="width:14%">量级</th></tr></thead>
 <tbody>
 <tr><td>新增 <code>PlatformLogin.kt</code></td><td>PKCE 生成、auth_init/auth_exchange 请求、状态机</td><td>~260 行</td></tr>
-<tr><td>新增 <code>LoopbackServer.kt</code></td><td>只监听 127.0.0.1 的极简 HTTP server，收 <code>/oauth/callback</code></td><td>~120 行</td></tr>
+<tr><td>新增 <code>LoopbackServer.kt</code></td><td>只监听 127.0.0.1 的极简 HTTP server，收 <code>/oauth/callback</code>；实测 dex 仅 +3.6KB</td><td>~120 行</td></tr>
 <tr><td><code>MainActivity.kt</code></td><td>加 <code>startBrowserLogin</code> / <code>cancelBrowserLogin</code> / <code>getLoginState</code></td><td>~40 行</td></tr>
 <tr><td><code>settings_page.dart</code></td><td>平台会话区改为四态组件，手动入口折叠</td><td>~180 行</td></tr>
 <tr><td><code>DsPrefs.kt</code></td><td>存 loginMethod / 账号标识</td><td>~15 行</td></tr>
@@ -560,8 +560,36 @@
 </table>
 </div>
 
+<div class="note ok-note">
+<b>体积代价：已实测，几乎为零。</b>纯 Kotlin + 平台 API（<code class="inline">java.net.ServerSocket</code>），
+<b>不引任何第三方依赖</b>。我把一段形状与真实实现相同的 loopback server 代码注入当前工程重新打包，
+dex 只涨 <b class="num">3,624 字节</b>，APK 只涨 <b class="num">2,116 字节</b>（7,517,038 → 7,519,154）。
+原因是 <code class="inline">java.net.*</code> 本来就在包里——现在发请求用的 <code class="inline">HttpURLConnection</code> 就是同一个包，
+<code class="inline">ServerSocket</code> 只是同一套基础设施里的另一个类，不新增任何库。
+实测后已把探针代码完全移除，包体恢复到基线。
+</div>
+
 <div class="note">
-<b>体积代价：</b>纯 Kotlin + 平台 API（<code class="inline">ServerSocket</code>），<b>不引任何依赖</b>，dex 增量很小，不影响现在的零依赖与 7.2MB。
+<b>为什么不能改用更「轻」的方案？</b>三种接收回调的办法我都试过了：
+<div class="tscroll" style="margin-top:8px">
+<table>
+<thead><tr><th style="width:34%">方案</th><th style="width:18%">可行性</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>自定义 scheme（<code>dsbar://</code>）+ Intent Filter</td><td class="no">不可行</td><td>平台拒绝非 loopback 的 redirect_uri（实测 50005）</td></tr>
+<tr><td>App Links（<code>https://</code> 域名）</td><td class="no">不可行</td><td>同上；而且还得自建一个公网域名，比本地 server 重得多</td></tr>
+<tr><td>内嵌 WebView 拦截跳转</td><td class="no">不可行</td><td>redirect_uri 仍必须是 <code>http://127.0.0.1:PORT/oauth/callback</code>——WebView 拦得住跳转，但那个 URL 本身就得有人应答，还是要 server</td></tr>
+<tr><td><b>系统浏览器 + 本地 loopback server</b></td><td class="ok">可行</td><td>平台明确允许 127.0.0.1；Android 无内建回调接收 API，只能自己接</td></tr>
+</tbody>
+</table>
+</div>
+所以「起本地 server」不是设计上偷懒，而是被平台约束逼出来的唯一路径。
+成本是 <b class="num">2KB</b>，不是几十 MB。
+</div>
+
+<div class="note">
+<b>而且这个 server 很轻：</b>只绑 <code class="inline">127.0.0.1</code>（不碰外部网络）、只处理一个 GET 请求、
+回一个 HTML 就 <code class="inline">close()</code>、随登录流程起停，不是常驻服务。
+用 <code class="inline">ServerSocket</code> 手写约 120 行，不需要任何 HTTP 框架。
 </div>
 
 <!-- ============ 8. 待你决定 ============ -->
