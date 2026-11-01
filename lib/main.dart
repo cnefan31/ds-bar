@@ -18,7 +18,7 @@ void main() {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(
     MaterialApp(
-      title: 'DS Bar',
+      title: 'ds-bar',
       debugShowCheckedModeBanner: false,
       theme: DsTheme.build(),
       darkTheme: DsTheme.build(),

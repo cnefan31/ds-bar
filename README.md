@@ -1,4 +1,4 @@
-# DS Bar · DeepSeek 用量与余额
+# ds-bar · DeepSeek 用量与余额
 
 安卓应用：主页展示 DeepSeek 账户余额、token 用量、按 key / 按模型明细；通知栏常驻余额；快捷设置磁贴一键查看。界面 Flutter，取数与后台任务在 Kotlin 原生层。
 
@@ -86,13 +86,26 @@ bash scripts/prefetch-flutter-engine.sh debug   # 首次构建前跑一次，见
 flutter test                                    # 37 个 Dart 单测 + 界面渲染测试
 flutter analyze                                 # 静态检查（当前零告警）
 flutter build apk --debug                       # 调试包
-bash scripts/build-release.sh                   # 发布包（体积已优化，见下节）
+bash scripts/build-release.sh                   # 发布包：split-per-abi 三个分包（默认）
+bash scripts/build-release.sh universal         # 发布包：三架构合一的单包
 ```
 
 发布包请用 `scripts/build-release.sh`，不要直接跑 `flutter build apk --release`：
-脚本固化了 `--target-platform android-arm64` 与 `--split-debug-info`，且因
-`--target-platform` 是唯一有效的 ABI 裁剪入口（写在 `gradle.properties` 或
-`defaultConfig.ndk.abiFilters` 均无效），漏掉它包体会从 7.2MB 涨到 21.5MB。
+
+- 默认产出 **split-per-abi 三个分包**，每架构一个，各自最小：
+
+  | 包 | 体积 | 适用 |
+  | --- | --- | --- |
+  | `app-arm64-v8a-release.apk` | 7.2MB | 绝大多数真机 |
+  | `app-armeabi-v7a-release.apk` | 6.6MB | 32 位老机型 |
+  | `app-x86_64-release.apk` | 7.3MB | 模拟器 |
+
+- `universal` 模式产出三架构合一的单包（约 21.2MB），任意设备直接装，分发最省事，
+  代价是体积是分包的三倍。
+
+`--target-platform` 是唯一有效的 ABI 选择入口——写在 `gradle.properties` 或
+`defaultConfig.ndk.abiFilters` 均无效，因为引擎库由 `CopyFlutterJniLibsTask`
+按 `target-platform` 注入，绕过 ndk 过滤。
 
 Android 原生单测：
 
@@ -120,17 +133,19 @@ Gradle 从 `storage.googleapis.com/download.flutter.io` 拉 Flutter 引擎产物
 
 ```bash
 flutter install
-# 或
-adb install -r build/app/outputs/flutter-apk/app-release.apk
+# 或按设备架构选分包
+adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk    # 绝大多数真机
+adb install -r build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk  # 32 位老机型
+adb install -r build/app/outputs/flutter-apk/app-x86_64-release.apk       # 模拟器
 ```
 
 ## 发布包体积
 
-基线 49.8MB → 现 7.2MB（`7,517,106` 字节），削减 84.9%。逐项来源：
+基线 49.8MB → 现每架构分包 6.6–7.3MB，削减 85% 以上。逐项来源（以 arm64 分包为例）：
 
 | 措施 | 效果 | 代价 |
 | --- | --- | --- |
-| 只打 arm64-v8a | 49.8 → 17.5MB | 不含 32 位与 x86；需要时加 `--target-platform android-arm,android-arm64` |
+| split-per-abi 分包（每包只带自己架构的 `.so`） | 49.8 → 17.5MB | 需按设备架构分发；universal 单包仍为 21.2MB |
 | `.so` 改为可压缩（`useLegacyPackaging`） | 17.5 → 8.2MB | 安装时解压，占用磁盘 23MB |
 | 移除 WorkManager，改用平台 `JobScheduler` | dex 1.48 → 1.02MB | 无 |
 | ProGuard 去掉 `-keep class io.flutter.** { *; }`，改用 `-keepnames` | dex 1.02 → 0.73MB | 类名保留、成员可裁；官方 `flutter_proguard_rules.pro` 已覆盖真实反射需求 |
@@ -176,7 +191,7 @@ Kotlin 侧不接受任何 `implementation(...)`，`RefreshJobServiceTest` 会守
 | Kotlin 单测 | `cd android && ./gradlew :app:testDebugUnitTest` | 58 条全过 |
 | 真机端到端 | `flutter test integration_test/native_e2e_test.dart -d <id>` | 3 条全过（HLK AL10 / Android 10） |
 | 静态检查 | `flutter analyze` | No issues found |
-| 构建 | `bash scripts/build-release.sh` | 发布包 7.2MB（基线 49.8MB） |
+| 构建 | `bash scripts/build-release.sh` | 分包 6.6–7.3MB；universal 21.2MB（基线 49.8MB） |
 
 覆盖范围：
 
