@@ -2,6 +2,25 @@
 
 安卓应用：主页展示 DeepSeek 账户余额、token 用量、按 key / 按模型明细；通知栏常驻余额；快捷设置磁贴一键查看。界面 Flutter，取数与后台任务在 Kotlin 原生层。
 
+## 下载安装
+
+已编译的安装包在 [Releases](https://github.com/cnefan31/ds-bar/releases) 页。按设备架构选一个：
+
+| 文件 | 体积 | 适用 |
+| --- | --- | --- |
+| `app-arm64-v8a-release.apk` | 7.2 MB | 绝大多数真机 |
+| `app-armeabi-v7a-release.apk` | 6.6 MB | 32 位老机型 |
+| `app-x86_64-release.apk` | 7.3 MB | 模拟器 |
+
+不确定架构时用 arm64-v8a；装错了系统会拒绝安装并提示 ABIs 不兼容。
+
+```bash
+adb install -r app-arm64-v8a-release.apk
+```
+
+签名证书为自签（CN=DS Bar），安装时系统会提示「未知来源」。
+后续版本沿用同一证书，可直接覆盖升级。
+
 ## 功能
 
 | 模块 | 内容 |
