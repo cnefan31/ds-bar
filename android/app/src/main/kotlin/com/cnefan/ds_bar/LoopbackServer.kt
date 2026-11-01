@@ -32,6 +32,7 @@ class LoopbackServer {
     fun awaitCallback(
         expectedState: String,
         timeoutMs: Int,
+        onDiagnostic: (String) -> Unit = {},
         onPort: (Int) -> Unit
     ): Callback {
         val bindAddr = InetAddress.getByName("127.0.0.1")
@@ -51,7 +52,7 @@ class LoopbackServer {
                 }
                 socket.use { s ->
                     s.soTimeout = 5_000
-                    val result = handle(s, expectedState)
+                    val result = handle(s, expectedState, onDiagnostic)
                     if (result != null) return result
                 }
             }
@@ -60,7 +61,11 @@ class LoopbackServer {
     }
 
     /** 处理单个连接；拿到合法回调返回 Callback，否则回 400 并返回 null 继续等。 */
-    private fun handle(socket: Socket, expectedState: String): Callback? {
+    private fun handle(
+        socket: Socket,
+        expectedState: String,
+        onDiagnostic: (String) -> Unit
+    ): Callback? {
         val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.ISO_8859_1))
         val requestLine = reader.readLine() ?: return null
         // 把请求头读完，但只需要请求行里的目标路径。
@@ -96,9 +101,12 @@ class LoopbackServer {
         }
         // 逐字节定长比较，避免早退泄露 state 前缀。
         if (!constantTimeEquals(state, expectedState)) {
+            // 只报哈希前缀用于排障，不把 state 原文传出。
+            onDiagnostic("state mismatch: received=${fingerprint(state)} expected=${fingerprint(expectedState)}")
             respond(socket, 400, page("状态校验失败", false))
             return null
         }
+        onDiagnostic("callback received, state ok, code=${fingerprint(code)}")
         respond(socket, 200, page("已授权，可以回到 App", true))
         return Callback(code, state)
     }
@@ -150,6 +158,13 @@ align-items:center;justify-content:center;font-size:24px;color:$accent">$mark</d
             if (k.isEmpty()) null
             else URLDecoder.decode(k, "UTF-8") to URLDecoder.decode(v, "UTF-8")
         }.toMap()
+    }
+
+    /** state/code 的短指纹，只用于日志比对，不可逆推出原文。 */
+    private fun fingerprint(value: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+        return digest.take(4).joinToString("") { "%02x".format(it) }
     }
 
     private fun constantTimeEquals(a: String, b: String): Boolean {

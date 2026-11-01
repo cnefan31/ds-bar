@@ -39,6 +39,21 @@ object PlatformLogin {
         "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/120.0.0.0 Mobile Safari/537.36"
 
+    /**
+     * 一次授权的 PKCE 参数，**必须由调用方生成一次并全程复用**。
+     *
+     * 曾经踩过的坑：这里和 BrowserLogin 各自生成了一份 state/verifier，
+     * 发给平台的是 B、本地校验用的是 A，于是每次回调都「状态校验失败」，
+     * 且就算 state 侥幸对上 PKCE 也会因为 verifier 不匹配而换不到 token。
+     */
+    class Pkce private constructor(val verifier: String, val state: String) {
+        val challenge: String = challengeOf(verifier)
+
+        companion object {
+            fun create(): Pkce = Pkce(newVerifier(), newState())
+        }
+    }
+
     class Init(val authorizeUrl: String, val authorizeId: String, val expiresInSeconds: Int)
 
     class Grant(val token: String, val accountHint: String?)
@@ -108,18 +123,17 @@ object PlatformLogin {
 
     // ---------- 请求 ----------
 
-    fun start(port: Int, deviceId: String): Init {
-        val verifier = newVerifier()
-        val state = newState()
-        val challenge = challengeOf(verifier)
+    /** 单独抽出请求体，便于单测断言「发给平台的 state 就是本地等待的那个」。 */
+    internal fun buildInitBody(port: Int, pkce: Pkce): JSONObject = JSONObject()
+        .put("code_challenge", pkce.challenge)
+        .put("code_challenge_method", "S256")
+        .put("state", pkce.state)
+        .put("redirect_uri", redirectUri(port))
+        .put("locale", "zh_CN")
+        .put("login_source", "desktop")
 
-        val body = JSONObject()
-            .put("code_challenge", challenge)
-            .put("code_challenge_method", "S256")
-            .put("state", state)
-            .put("redirect_uri", redirectUri(port))
-            .put("locale", "zh_CN")
-            .put("login_source", "desktop")
+    fun start(port: Int, deviceId: String, pkce: Pkce): Init {
+        val body = buildInitBody(port, pkce)
 
         val res = DsHttp.postJson(
             "$BASE$INIT_PATH",

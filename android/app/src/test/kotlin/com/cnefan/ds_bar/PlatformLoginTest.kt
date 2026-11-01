@@ -297,4 +297,113 @@ class PlatformLoginTest {
         assertTrue("必须显式绑定 127.0.0.1", src.contains("InetAddress.getByName(\"127.0.0.1\")"))
         assertFalse("绝不能绑 0.0.0.0，那会把回调端口暴露到局域网", src.contains("\"0.0.0.0\""))
     }
+
+    /**
+     * 回归：发给平台的 state 必须与本地等待校验的 state 是同一个。
+     *
+     * 真实事故：PlatformLogin.start 内部自己又生成了一份 state/verifier，
+     * 平台带着它回来，本地却拿另一份比对，于是真机上每次回调都显示
+     * 「状态校验失败」——授权其实已成功，code 也是真的，却全被拒掉。
+     * 而当时的单测是手打本地 state 去模拟回调，绕过了平台的真实值，所以没抓到。
+     */
+    @Test
+    fun `auth_init 请求体里的 state 与 challenge 来自同一份 PKCE`() {
+        val pkce = PlatformLogin.Pkce.create()
+        val body = PlatformLogin.buildInitBody(40001, pkce)
+
+        assertEquals("state 必须是本地等待的那一个", pkce.state, body.getString("state"))
+        assertEquals("challenge 必须由同一份 verifier 推出", pkce.challenge, body.getString("code_challenge"))
+        assertEquals("S256", body.getString("code_challenge_method"))
+        assertEquals("http://127.0.0.1:40001/oauth/callback", body.getString("redirect_uri"))
+    }
+
+    /** challenge 必须真的等于 sha256(verifier)，否则 exchange 换不到 token。 */
+    @Test
+    fun `Pkce 的 challenge 与 verifier 严格对应`() {
+        val pkce = PlatformLogin.Pkce.create()
+        assertEquals(
+            b64(MessageDigest.getInstance("SHA-256").digest(pkce.verifier.toByteArray(Charsets.US_ASCII))),
+            pkce.challenge
+        )
+        // 两次 create 不能复用同一份参数
+        assertNotEquals(pkce.state, PlatformLogin.Pkce.create().state)
+    }
+
+    /**
+     * 结构性断言：PKCE 只能生成一次。
+     *
+     * 上面两条测的是 buildInitBody 本身，但若 start() 忽略传入的 pkce、自己再造一份，
+     * 单测仍然全绿而真机必然失败——这就是当初漏掉的原因。所以这里直接检查源码：
+     * 生成入口只允许出现在 Pkce 伴生对象里，调用链上不许再 new 第二份。
+     */
+    @Test
+    fun `PKCE 参数只允许生成一次`() {
+        val src = File(moduleDir(), "src/main/kotlin/com/cnefan/ds_bar/PlatformLogin.kt").readText()
+        assertTrue("Pkce 必须提供 create() 作为唯一生成入口", src.contains("fun create(): Pkce"))
+        // start() 必须用传入的 pkce 组包，不许自己再造一份
+        assertTrue(
+            "start() 必须使用传入的 pkce，不能自己再生成一份",
+            src.contains("buildInitBody(port, pkce)")
+        )
+        assertFalse(
+            "start() 里不得再出现 Pkce.create()，否则发的 state 与本地等待的不是同一个",
+            Regex("buildInitBody\\(port, Pkce\\.create\\(\\)\\)").containsMatchIn(src)
+        )
+
+        // 业务编排层不许直接造 verifier/state
+        val orchestrator = File(moduleDir(), "src/main/kotlin/com/cnefan/ds_bar/BrowserLogin.kt").readText()
+        assertFalse(
+            "BrowserLogin 不得自行生成 verifier，必须复用 Pkce.create() 的结果",
+            orchestrator.contains("PlatformLogin.newVerifier()")
+        )
+        assertFalse(
+            "BrowserLogin 不得自行生成 state，必须复用 Pkce.create() 的结果",
+            orchestrator.contains("PlatformLogin.newState()")
+        )
+        assertEquals(
+            "BrowserLogin 每次登录只允许生成一份 PKCE",
+            1,
+            Regex("Pkce\\.create\\(\\)").findAll(orchestrator).count()
+        )
+        assertTrue(
+            "BrowserLogin 必须用同一份 pkce 完成 init 与 exchange",
+            orchestrator.contains("pkce.verifier") && orchestrator.contains("pkce.state")
+        )
+    }
+
+    /** 回调不匹配时必须上报诊断，否则真机失败只能看到一句「状态校验失败」，无从定位。 */
+    @Test
+    fun `state 不匹配会上报诊断信息`() {
+        val diagnostics = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val t = Thread {
+            runCatching {
+                LoopbackServer().awaitCallback(
+                    expectedState = "EXPECTED_STATE",
+                    timeoutMs = 2_500,
+                    onDiagnostic = { diagnostics.add(it) }
+                ) { port ->
+                    Thread {
+                        runCatching {
+                            Socket("127.0.0.1", port).use { s ->
+                                s.getOutputStream().write(
+                                    ("GET /oauth/callback?code=C&state=OTHER_STATE HTTP/1.1\r\n" +
+                                        "Host: 127.0.0.1\r\nConnection: close\r\n\r\n").toByteArray()
+                                )
+                                s.getOutputStream().flush()
+                                BufferedReader(InputStreamReader(s.getInputStream())).readLine()
+                            }
+                        }
+                    }.start()
+                }
+            }
+        }
+        t.isDaemon = true; t.start()
+        t.join(10_000)
+
+        assertTrue("应至少上报一条诊断：$diagnostics", diagnostics.isNotEmpty())
+        val msg = diagnostics.first { it.contains("mismatch") }
+        assertTrue("诊断应含 received 指纹", msg.contains("received="))
+        assertTrue("诊断应含 expected 指纹", msg.contains("expected="))
+        assertFalse("绝不能把 state 原文写进诊断", msg.contains("OTHER_STATE"))
+    }
 }

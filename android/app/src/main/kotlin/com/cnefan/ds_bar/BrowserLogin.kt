@@ -104,10 +104,9 @@ object BrowserLogin {
     }
 
     private fun runAttempt(context: Context, onOpenBrowser: (String) -> Unit) {
-        // PKCE 参数必须在起 server 之前就生成：awaitCallback 需要 expectedState 做校验，
-        // 若等到 onPort 回调里再生成，传入的会是空串，state 校验必然失败。
-        val verifier = PlatformLogin.newVerifier()
-        val expectedState = PlatformLogin.newState()
+        // 一次授权只生成一份 PKCE，auth_init 发给平台的、本地校验的、auth_exchange 用的
+        // 必须是同一份，否则回调必然「状态校验失败」或换不到 token。
+        val pkce = PlatformLogin.Pkce.create()
         val deviceId = DsPrefs(context).loginDeviceId
 
         var port = 0
@@ -115,12 +114,13 @@ object BrowserLogin {
 
         try {
             val cb = LoopbackServer().awaitCallback(
-                expectedState = expectedState,
-                timeoutMs = WAIT_TIMEOUT_MS
+                expectedState = pkce.state,
+                timeoutMs = WAIT_TIMEOUT_MS,
+                onDiagnostic = { msg -> Log.i(TAG, msg) }
             ) { boundPort ->
                 port = boundPort
                 Log.i(TAG, "loopback listening on 127.0.0.1:$boundPort")
-                val init = PlatformLogin.start(boundPort, deviceId)
+                val init = PlatformLogin.start(boundPort, deviceId, pkce)
                 authorizeUrl = init.authorizeUrl
                 Log.i(TAG, "auth_init ok, opening browser")
                 setState(
@@ -138,13 +138,13 @@ object BrowserLogin {
                 setState(context, State.Failed("protocol", "授权未初始化"))
                 return
             }
-            if (cb.state != expectedState) {
+            if (cb.state != pkce.state) {
                 setState(context, State.Failed("state_mismatch", "状态校验失败，请重试"))
                 return
             }
 
             setState(context, State.Exchanging)
-            val grant = PlatformLogin.exchange(port, cb.code, verifier, deviceId)
+            val grant = PlatformLogin.exchange(port, cb.code, pkce.verifier, deviceId)
             val prefs = DsPrefs(context)
             prefs.userToken = grant.token
             prefs.loginMethod = DsPrefs.LOGIN_BROWSER
