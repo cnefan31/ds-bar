@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `app-arm64-v8a-release.apk` | 7.2 MB | 绝大多数真机 |
 | `app-armeabi-v7a-release.apk` | 6.6 MB | 32 位老机型 |
-| `app-x86_64-release.apk` | 7.3 MB | 模拟器 |
+| `app-x86_64-release.apk` | 7.4 MB | 模拟器 |
 
 不确定架构时用 arm64-v8a；装错了系统会拒绝安装并提示 ABIs 不兼容。
 
