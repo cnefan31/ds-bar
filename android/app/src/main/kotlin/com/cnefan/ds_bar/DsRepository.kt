@@ -184,13 +184,24 @@ class DsRepository(private val context: Context) {
                     .put("masked", k.optString("sensitive_id"))
                     .put("trackingId", k.optString("tracking_id"))
                     .put("keyType", k.optString("key_type"))
-                    .put("createdAt", k.optLong("created_at", 0L))
-                    .put("lastUse", k.optLong("last_use", 0L))
+                    .put("createdAt", epochToMillis(k.optLong("created_at", 0L)))
+                    .put("lastUse", epochToMillis(k.optLong("last_use", 0L)))
                     .put("quotaUsed", quota?.optDouble("used", 0.0) ?: 0.0)
                     .put("quotaLimit", quota?.optDouble("limit", 0.0) ?: 0.0)
             )
         }
         return out
+    }
+
+    /**
+     * 平台的时间戳是**秒**（实测 created_at=1790734297、last_use=1793473391），
+     * 直接当毫秒用会变成 1970-01-22，界面显示的时间就全错了。
+     * 这里统一归一到毫秒；1e11 毫秒约等于 1973 年，比它小的只可能是秒。
+     */
+    internal fun epochToMillis(value: Long): Long = when {
+        value <= 0L -> 0L
+        value < 100_000_000_000L -> value * 1000L
+        else -> value
     }
 
     /** 平台统一信封：{code,msg,data{biz_code,biz_msg,biz_data}}。 */

@@ -80,4 +80,30 @@ class PlatformAuthHeaderTest {
             )
         }
     }
+
+    /**
+     * 平台时间戳是秒，不是毫秒。
+     *
+     * 真实事故：直接把 last_use 当毫秒解析，界面显示「01-22 02:11」，
+     * 也就是 1970 年——所有 Key 的「最后使用」全错。
+     * 实测原值：created_at=1790734297、last_use=1793473391。
+     */
+    @Test
+    fun `平台秒级时间戳会被换算成毫秒`() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val repo = DsRepository(ctx)
+
+        assertEquals("秒 → 毫秒", 1_793_473_391_000L, repo.epochToMillis(1_793_473_391L))
+        assertEquals("已经是毫秒的不动", 1_793_473_391_000L, repo.epochToMillis(1_793_473_391_000L))
+        assertEquals("0 保持 0", 0L, repo.epochToMillis(0L))
+        assertEquals("负数按无效处理", 0L, repo.epochToMillis(-5L))
+    }
+
+    @Test
+    fun `换算后的时间落在 2026 年而不是 1970 年`() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val millis = DsRepository(ctx).epochToMillis(1_793_473_391L)
+        val year = java.util.Calendar.getInstance().apply { timeInMillis = millis }.get(java.util.Calendar.YEAR)
+        assertEquals("1793473391 秒 = 2026-10-31", 2026, year)
+    }
 }
