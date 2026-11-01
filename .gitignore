@@ -49,3 +49,9 @@ app.*.map.json
 
 # 本地预置的 Flutter 引擎产物（体积大，由 scripts/prefetch-flutter-engine.sh 生成）
 .flutter-m2/
+
+# 签名相关：密钥与口令绝不入库
+android/key.properties
+*.jks
+*.keystore
+!android/app/debug.keystore
