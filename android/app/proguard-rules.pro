@@ -16,15 +16,11 @@
 
 # 通知相关入口
 -keep class com.cnefan.ds_bar.BalanceNotification { *; }
--keep class com.cnefan.ds_bar.RefreshActionReceiver { *; }
 -keep class com.cnefan.ds_bar.BalanceTileService { *; }
--keep class com.cnefan.ds_bar.RefreshWorker { *; }
 
-# --- AndroidX WorkManager ---
-# Worker 由系统按类名实例化，保留无参构造入口。
--keep class * extends androidx.work.Worker { *; }
--keep class * extends androidx.work.CoroutineWorker { *; }
--dontwarn androidx.work.**
+# --- JobScheduler ---
+# JobService 由系统按 manifest 里的类名反射实例化，名字不能改。
+-keep class com.cnefan.ds_bar.RefreshJobService { *; }
 
 # --- 保留注解与泛型签名，避免 JSON 反射出错 ---
 -keepattributes Signature
@@ -38,22 +34,3 @@
 # 保留行号，便于线上崩溃定位
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
-
-# --- Room（WorkManager 用它持久化任务） ---
-# Room 在编译期生成 *_Impl 类，运行时按约定名字反射实例化。
-# R8 裁掉其无参构造会导致：
-#   NoSuchMethodException: androidx.work.impl.WorkDatabase_Impl.<init>
-# 进而在 Application 启动时崩溃。
--keep class androidx.work.impl.WorkDatabase_Impl { *; }
--keep class * extends androidx.room.RoomDatabase { *; }
--keep class androidx.room.RoomDatabase { *; }
--dontwarn androidx.room.paging.**
-
-# Room 生成的实现类统一保留（含所有 _Impl 后缀）
--keep class **_Impl { *; }
-
-# Room 依赖注解处理器生成的元数据
--keep class androidx.room.** { *; }
--keepclassmembers class * extends androidx.room.RoomDatabase {
-    public <init>();
-}

@@ -10,9 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import android.widget.RemoteViews
 import org.json.JSONObject
 
@@ -54,10 +51,11 @@ object BalanceNotification {
 
     fun canNotify(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            val granted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
             if (granted != PackageManager.PERMISSION_GRANTED) return false
         }
-        return NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+        return manager.areNotificationsEnabled()
     }
 
     fun contentIntent(context: Context): PendingIntent {
@@ -112,19 +110,29 @@ object BalanceNotification {
         bindCollapsed(collapsed, content)
         bindExpanded(expanded, content)
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_balance)
+        // 直接用平台 Notification.Builder（API 26+ 用渠道构造器），不引 androidx.core。
+        // 装饰模板 DecoratedCustomViewStyle 是平台类，效果与 NotificationCompat 的包装一致。
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(context, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(context)
+        }
+        builder.setSmallIcon(R.drawable.ic_stat_balance)
             .setContentTitle(content.title)
             .setContentText(content.text)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setCategory(Notification.CATEGORY_STATUS)
             .setContentIntent(contentIntent(context))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            @Suppress("DEPRECATION")
+            builder.setPriority(Notification.PRIORITY_LOW)
+        }
 
         // 通知栏不再放「刷新」按钮：点整卡进 App，手动刷新入口保留在磁贴与 App 内。
         return builder.build()
@@ -137,7 +145,8 @@ object BalanceNotification {
             return
         }
         try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, build(context, snapshot))
+            context.getSystemService(NotificationManager::class.java)
+                ?.notify(NOTIFICATION_ID, build(context, snapshot))
             android.util.Log.i("DsBarNotify", "notified id=$NOTIFICATION_ID")
         } catch (t: Throwable) {
             android.util.Log.e("DsBarNotify", "notify threw", t)
@@ -145,7 +154,7 @@ object BalanceNotification {
     }
 
     fun cancel(context: Context) {
-        runCatching { NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID) }
+        runCatching { context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID) }
     }
 
     fun updateFromCache(context: Context, prefs: DsPrefs) {
@@ -155,26 +164,5 @@ object BalanceNotification {
         }
         val snapshot = prefs.cachedSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
         show(context, snapshot)
-    }
-}
-
-/** 通知栏「刷新」按钮。 */
-class RefreshActionReceiver : android.content.BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != ACTION_REFRESH) return
-        val pending = goAsync()
-        Thread {
-            try {
-                DsRefresh.perform(context)
-            } catch (t: Throwable) {
-                // 静默：失败信息会体现在通知文本的状态行
-            } finally {
-                pending.finish()
-            }
-        }.start()
-    }
-
-    companion object {
-        const val ACTION_REFRESH = "com.cnefan.ds_bar.action.REFRESH"
     }
 }

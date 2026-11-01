@@ -27,14 +27,11 @@
             </intent-filter>
         </activity>
 
-        <!-- 通知栏「刷新」按钮 -->
-        <receiver
-            android:name=".RefreshActionReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.cnefan.ds_bar.action.REFRESH"/>
-            </intent-filter>
-        </receiver>
+        <!-- 后台定时刷新（平台 JobScheduler，替代 WorkManager） -->
+        <service
+            android:name=".RefreshJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <!-- 快速设置磁贴 -->
         <service

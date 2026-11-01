@@ -51,6 +51,13 @@ android {
         }
     }
 
+    // 压缩 .so 后 APK 体积约减半（代价：安装时解压，占用磁盘略增）。
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = if (hasReleaseKey) {
@@ -79,8 +86,6 @@ flutter {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.work:work-runtime:2.10.5")
 
     testImplementation("junit:junit:4.13.2")
     // JVM 单测里替代 Android 的 org.json 桩实现。

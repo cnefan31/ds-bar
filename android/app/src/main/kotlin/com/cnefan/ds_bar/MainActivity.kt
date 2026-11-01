@@ -108,7 +108,8 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // 启动即恢复定时刷新（多进程被杀后 WorkManager 仍保留，这里兜底）
+        // 启动即恢复定时刷新兜底：系统 force-stop 或用户「清除数据」会清掉已注册
+        // 的 job（JobScheduler 与 WorkManager 同此行为），进 App 时补回来。
         if (prefs.tileEnabled || prefs.notifyEnabled) {
             RefreshScheduler.schedule(this, prefs.refreshMinutes)
         }
