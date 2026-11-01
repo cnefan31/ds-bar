@@ -58,6 +58,27 @@ class DsPrefs(context: Context) {
         get() = sp.getLong(KEY_LAST_REFRESH, 0L)
         set(value) = sp.edit().putLong(KEY_LAST_REFRESH, value).apply()
 
+    /** 登录方式：manual（粘贴 userToken）或 browser（一键授权）。仅用于界面展示。 */
+    var loginMethod: String
+        get() = sp.getString(KEY_LOGIN_METHOD, LOGIN_MANUAL) ?: LOGIN_MANUAL
+        set(value) = sp.edit().putString(KEY_LOGIN_METHOD, value).apply()
+
+    /** 打码后的账号标识（如 1•••••@qq.com）；拿不到就是空串，界面不显示占位。 */
+    var accountHint: String
+        get() = sp.getString(KEY_ACCOUNT_HINT, "") ?: ""
+        set(value) = sp.edit().putString(KEY_ACCOUNT_HINT, value).apply()
+
+    /** 设备标识，只用于 auth_exchange，稳定即可，不含个人信息。 */
+    var loginDeviceId: String
+        get() {
+            val v = sp.getString(KEY_DEVICE_ID, null)
+            if (!v.isNullOrBlank()) return v
+            val fresh = java.util.UUID.randomUUID().toString()
+            sp.edit().putString(KEY_DEVICE_ID, fresh).apply()
+            return fresh
+        }
+        set(value) = sp.edit().putString(KEY_DEVICE_ID, value).apply()
+
     var cachedSnapshot: String?
         get() = sp.getString(KEY_SNAPSHOT, null)
         set(value) = sp.edit().putString(KEY_SNAPSHOT, value).apply()
@@ -120,6 +141,8 @@ class DsPrefs(context: Context) {
             .put("tileEnabled", tileEnabled)
             .put("demoMode", demoMode)
             .put("userTokenSet", userToken.isNotBlank())
+            .put("loginMethod", loginMethod)
+            .put("accountHint", accountHint)
             .put("cookieSet", cookie.isNotBlank())
             .put("lastRefreshAt", lastRefreshAt)
     }
@@ -127,6 +150,11 @@ class DsPrefs(context: Context) {
     companion object {
         const val NAME = "ds_bar"
         const val DEFAULT_REFRESH_MINUTES = 60
+        const val LOGIN_MANUAL = "manual"
+        const val LOGIN_BROWSER = "browser"
+        private const val KEY_LOGIN_METHOD = "login_method"
+        private const val KEY_ACCOUNT_HINT = "account_hint"
+        private const val KEY_DEVICE_ID = "login_device_id"
         private const val KEY_KEYS = "api_keys"
         private const val KEY_USER_TOKEN = "user_token"
         private const val KEY_COOKIE = "cookie"

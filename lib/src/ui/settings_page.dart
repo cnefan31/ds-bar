@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
@@ -34,12 +36,74 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _testing = false;
   int? _dragMinutes;
   ProbeResult? _probe;
+  LoginSnapshot? _login;
+  bool _loginBusy = false;
+  Timer? _loginPoll;
 
   /// 刷新间隔预设档位。滑块的 23 个刻度实际只有这几档有意义。
   static const _intervals = [15, 30, 60, 360];
 
   @override
+  void initState() {
+    super.initState();
+    // 进页面时同步一次登录状态，避免切走后回来显示过期信息。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncLoginState());
+  }
+
+  Future<void> _syncLoginState() async {
+    final snap = await widget.bridge.getLoginState();
+    if (!mounted) return;
+    setState(() => _login = snap);
+    if (snap.isBusy) _startLoginPoll();
+  }
+
+  void _startLoginPoll() {
+    _loginPoll?.cancel();
+    // 2 秒一次。登录是短流程，轮询足够，且不引入 event channel 的复杂度。
+    _loginPoll = Timer.periodic(const Duration(seconds: 2), (t) async {
+      final snap = await widget.bridge.getLoginState();
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _login = snap);
+      if (!snap.isBusy) {
+        t.cancel();
+        if (snap.isDone) await widget.state.load();
+      }
+    });
+  }
+
+  Future<void> _startBrowserLogin() async {
+    if (_loginBusy) return;
+    setState(() => _loginBusy = true);
+    try {
+      final snap = await widget.bridge.startBrowserLogin();
+      if (!mounted) return;
+      setState(() => _login = snap);
+      _startLoginPoll();
+    } finally {
+      if (mounted) setState(() => _loginBusy = false);
+    }
+  }
+
+  Future<void> _cancelBrowserLogin() async {
+    final snap = await widget.bridge.cancelBrowserLogin();
+    if (!mounted) return;
+    _loginPoll?.cancel();
+    setState(() => _login = snap);
+  }
+
+  Future<void> _signOutPlatform() async {
+    final snap = await widget.bridge.signOutPlatform();
+    if (!mounted) return;
+    setState(() => _login = snap);
+    await widget.state.load();
+  }
+
+  @override
   void dispose() {
+    _loginPoll?.cancel();
     _tokenCtrl.dispose();
     _cookieCtrl.dispose();
     super.dispose();
@@ -335,6 +399,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 平台会话：userToken 状态 + 输入 + 操作。
   Widget _platformSession(AppConfig config) {
+    // 四态：未连接 / 等待中 / 已连接 / 失败。
+    // 手动填 userToken 的那条路始终保留，折叠在下方，登录失败时是唯一退路。
+    final login = _login;
+    final connected = config.userTokenSet;
+    final waiting = login?.isBusy ?? false;
+    final failed = login?.isFailed ?? false;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -343,76 +414,218 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               DsRow(
                 leading: StatusDot(
-                  color: config.userTokenSet ? DsColors.success : DsColors.inkTertiary,
+                  color: waiting
+                      ? DsColors.primary
+                      : connected
+                          ? DsColors.success
+                          : failed
+                              ? DsColors.danger
+                              : DsColors.inkTertiary,
                 ),
-                title: 'userToken',
-                sub: config.userTokenSet ? '已配置' : '未配置',
+                title: waiting ? '正在登录' : connected ? '已连接' : failed ? '登录未完成' : '用量与消费',
+                sub: waiting
+                    ? '在浏览器里完成登录后会自动回来'
+                    : connected
+                        ? (config.loginMethod == 'browser' ? '浏览器授权' : '手动配置')
+                        : failed
+                            ? (login?.errorMessage ?? '未拿到凭据')
+                            : '用 DeepSeek 账号登录后解锁',
                 trailing: StatusBadge(
-                  label: config.userTokenSet ? '已配置' : '缺失',
-                  color: config.userTokenSet ? DsColors.success : DsColors.warning,
+                  label: waiting ? '等待' : connected ? '已连接' : '未连接',
+                  color: waiting
+                      ? DsColors.primary
+                      : connected
+                          ? DsColors.success
+                          : failed
+                              ? DsColors.danger
+                              : DsColors.warning,
                 ),
               ),
+              if (config.accountHint.isNotEmpty) ...[
+                const Hairline(indent: 12, endIndent: 12),
+                DsRow(
+                  title: '账号',
+                  sub: config.accountHint,
+                ),
+              ],
+              if (waiting) ...[
+                const Hairline(indent: 12, endIndent: 12),
+                _loginWaitBody(login!),
+              ],
               const Hairline(indent: 12, endIndent: 12),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                 child: Column(
                   children: [
-                    TextField(
-                      controller: _tokenCtrl,
-                      obscureText: !_tokenVisible,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: DsColors.ink,
-                        fontFamily: 'monospace',
-                      ),
-                      decoration: InputDecoration(
-                        hintText: config.userTokenSet ? '已保存，粘贴新值可覆盖' : '粘贴 userToken',
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _tokenVisible
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            size: 17,
-                            color: DsColors.inkSubtle,
-                          ),
-                          onPressed: () => setState(() => _tokenVisible = !_tokenVisible),
+                    if (!connected && !waiting)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _loginBusy ? null : _startBrowserLogin,
+                          icon: const Icon(Icons.open_in_browser, size: 16),
+                          label: Text(failed ? '重试浏览器登录' : '用浏览器登录'),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _cookieCtrl,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      maxLines: 2,
-                      minLines: 1,
-                      style: const TextStyle(fontSize: 11, color: DsColors.ink),
-                      decoration: InputDecoration(
-                        hintText: config.cookieSet ? 'Cookie 已保存，可留空' : 'Cookie（可选）',
+                    if (connected)
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: _loginBusy ? null : _signOutPlatform,
+                          child: const Text('退出登录'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _saving ? null : _saveCredentials,
-                        child: Text(_saving ? '保存中…' : '保存'),
-                      ),
-                    ),
                   ],
                 ),
               ),
             ],
           ),
         ),
-        const DsHint(
-          '从 platform.deepseek.com 登录后，F12 → Application → Local Storage 复制 userToken。'
-          '若接口返回非 JSON，补上同域 Cookie 再试。',
-        ),
+        if (!connected && !waiting)
+          const DsHint(
+            '会跳到系统浏览器。若浏览器里已登录 DeepSeek，点一下授权就回到 App；'
+            '没登录会先让你登录。授权链接 10 分钟内有效。',
+          ),
+        if (failed)
+          Padding(
+            padding: const EdgeInsets.only(top: DsSpace.tight),
+            child: Text(
+              '登录失败不影响余额：API Key 那条路照常工作。也可以直接用下面的手动方式。',
+              style: DsText.hint.copyWith(color: DsColors.warning),
+            ),
+          ),
+        const SizedBox(height: 8),
+        // 手动入口：默认折叠，登录不可用时是唯一退路，所以必须有。
+        _manualTokenSection(config),
       ],
+    );
+  }
+
+  Widget _loginWaitBody(LoginSnapshot login) {
+    final left = login.remainingSeconds(DateTime.now());
+    final mm = (left ~/ 60).toString();
+    final ss = (left % 60).toString().padLeft(2, '0');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _LoginStep(index: 1, title: '浏览器已打开授权页', sub: '没自动跳过去就再点一次'),
+          _LoginStep(index: 2, title: '登录并点「授权」', sub: '已登录的账号会直接显示确认页'),
+          _LoginStep(index: 3, title: '自动回到这里', sub: '不用手动切回来', last: true),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: login.authorizeUrl.isEmpty
+                      ? null
+                      : () => widget.bridge.openUrl(login.authorizeUrl),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    minimumSize: const Size(0, 34),
+                    textStyle: DsText.rowTitle,
+                  ),
+                  child: const Text('再打开浏览器'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextButton(
+                  onPressed: _cancelBrowserLogin,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    minimumSize: const Size(0, 34),
+                    textStyle: DsText.rowTitle,
+                  ),
+                  child: const Text('取消'),
+                ),
+              ),
+            ],
+          ),
+          if (left > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('链接 $mm:$ss 后失效', style: DsText.hint),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _manualTokenSection(AppConfig config) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+        childrenPadding: const EdgeInsets.only(bottom: 4),
+        title: Text('手动填 userToken', style: DsText.rowTitle),
+        subtitle: Text(
+          config.userTokenSet ? '已配置，可覆盖' : '浏览器登录不可用时用这个',
+          style: DsText.rowSub,
+        ),
+        iconColor: DsColors.inkSubtle,
+        collapsedIconColor: DsColors.inkSubtle,
+        children: [
+          DsPanel(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _tokenCtrl,
+                    obscureText: !_tokenVisible,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: DsColors.ink,
+                      fontFamily: 'monospace',
+                    ),
+                    decoration: InputDecoration(
+                      hintText: config.userTokenSet ? '已保存，粘贴新值可覆盖' : '粘贴 userToken',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _tokenVisible
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 17,
+                          color: DsColors.inkSubtle,
+                        ),
+                        onPressed: () => setState(() => _tokenVisible = !_tokenVisible),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _cookieCtrl,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    maxLines: 2,
+                    minLines: 1,
+                    style: const TextStyle(fontSize: 11, color: DsColors.ink),
+                    decoration: InputDecoration(
+                      hintText: config.cookieSet ? 'Cookie 已保存，可留空' : 'Cookie（可选）',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _saveCredentials,
+                      child: Text(_saving ? '保存中…' : '保存'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const DsHint(
+            '从 platform.deepseek.com 登录后，F12 → Application → Local Storage 复制 userToken。'
+            '若接口返回非 JSON，补上同域 Cookie 再试。',
+          ),
+        ],
+      ),
     );
   }
 
@@ -849,4 +1062,59 @@ class _ProbeSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 等待态里的单条步骤。与设计稿的 .step 对应：圆形序号 + 标题 + 说明。
+class _LoginStep extends StatelessWidget {
+  const _LoginStep({
+    required this.index,
+    required this.title,
+    required this.sub,
+    this.last = false,
+  });
+
+  final int index;
+  final String title;
+  final String sub;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(bottom: last ? 0 : 9),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              margin: const EdgeInsets.only(top: 1),
+              decoration: BoxDecoration(
+                color: DsColors.primary.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '$index',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: DsColors.primaryHover,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: DsText.rowTitle),
+                  const SizedBox(height: 2),
+                  Text(sub, style: DsText.rowSub),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }

@@ -76,6 +76,28 @@ class NativeBridge {
     return ProbeResult.fromJson(jsonDecode(raw));
   }
 
+  /// 发起浏览器一键登录。返回首个状态快照，后续用 [getLoginState] 轮询。
+  Future<LoginSnapshot> startBrowserLogin() async {
+    final raw = await _invoke<String>('startBrowserLogin');
+    return LoginSnapshot.fromJson(jsonDecode(raw ?? '{}'));
+  }
+
+  Future<LoginSnapshot> cancelBrowserLogin() async {
+    final raw = await _invoke<String>('cancelBrowserLogin');
+    return LoginSnapshot.fromJson(jsonDecode(raw ?? '{}'));
+  }
+
+  Future<LoginSnapshot> getLoginState() async {
+    final raw = await _invoke<String>('getLoginState');
+    return LoginSnapshot.fromJson(jsonDecode(raw ?? '{}'));
+  }
+
+  /// 退出平台登录：清 token 与打码账号，不动 API Key。
+  Future<LoginSnapshot> signOutPlatform() async {
+    final raw = await _invoke<String>('signOutPlatform');
+    return LoginSnapshot.fromJson(jsonDecode(raw ?? '{}'));
+  }
+
   Future<bool> openQsTileSettings() async {
     final ok = await _invoke<bool>('openQsTileSettings');
     return ok ?? false;

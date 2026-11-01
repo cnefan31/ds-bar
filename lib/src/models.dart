@@ -310,6 +310,12 @@ class AppConfig {
   final bool cookieSet;
   final DateTime? lastRefreshAt;
 
+  /// manual = 粘贴 userToken；browser = 浏览器一键授权。
+  final String loginMethod;
+
+  /// 打码后的账号标识；空串表示平台没给，界面不显示占位。
+  final String accountHint;
+
   const AppConfig({
     this.keys = const [],
     this.refreshMinutes = 60,
@@ -319,6 +325,8 @@ class AppConfig {
     this.userTokenSet = false,
     this.cookieSet = false,
     this.lastRefreshAt,
+    this.loginMethod = 'manual',
+    this.accountHint = '',
   });
 
   factory AppConfig.fromJson(dynamic raw) {
@@ -331,6 +339,8 @@ class AppConfig {
       tileEnabled: Json.flag(json['tileEnabled'], true),
       demoMode: Json.flag(json['demoMode']),
       userTokenSet: Json.flag(json['userTokenSet']),
+      loginMethod: Json.str(json['loginMethod'], 'manual'),
+      accountHint: Json.str(json['accountHint'], ''),
       cookieSet: Json.flag(json['cookieSet']),
       lastRefreshAt: ts > 0 ? DateTime.fromMillisecondsSinceEpoch(ts) : null,
     );
@@ -466,4 +476,54 @@ class ProbeResult {
 
   int get okCount => items.where((e) => e.ok).length;
   int get failCount => items.length - okCount;
+}
+
+/// 浏览器一键登录的状态快照。
+///
+/// phase 取值：idle / waiting / exchanging / succeeded / failed。
+/// 与原生侧 BrowserLogin.State 一一对应，界面据此切四态。
+class LoginSnapshot {
+  final String phase;
+  final String authorizeUrl;
+
+  /// 授权链接过期的绝对毫秒时间戳；0 表示无（如 idle）。
+  final int expiresAt;
+  final String accountHint;
+  final String errorCode;
+  final String errorMessage;
+  final String loginMethod;
+
+  const LoginSnapshot({
+    this.phase = 'idle',
+    this.authorizeUrl = '',
+    this.expiresAt = 0,
+    this.accountHint = '',
+    this.errorCode = '',
+    this.errorMessage = '',
+    this.loginMethod = 'manual',
+  });
+
+  factory LoginSnapshot.fromJson(dynamic raw) {
+    final json = Json.map(raw) ?? const {};
+    return LoginSnapshot(
+      phase: Json.str(json['phase'], 'idle'),
+      authorizeUrl: Json.str(json['authorizeUrl'], ''),
+      expiresAt: Json.intOr(json['expiresAt']),
+      accountHint: Json.str(json['accountHint'], ''),
+      errorCode: Json.str(json['errorCode'], ''),
+      errorMessage: Json.str(json['errorMessage'], ''),
+      loginMethod: Json.str(json['loginMethod'], 'manual'),
+    );
+  }
+
+  bool get isBusy => phase == 'waiting' || phase == 'exchanging';
+  bool get isDone => phase == 'succeeded';
+  bool get isFailed => phase == 'failed';
+
+  /// 剩余秒数；无过期时间或已过期返回 0。
+  int remainingSeconds(DateTime now) {
+    if (expiresAt <= 0) return 0;
+    final ms = expiresAt - now.millisecondsSinceEpoch;
+    return ms <= 0 ? 0 : (ms / 1000).floor();
+  }
 }

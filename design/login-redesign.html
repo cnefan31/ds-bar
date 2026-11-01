@@ -530,7 +530,7 @@
     <ul style="font-size:12.5px;color:var(--page-mid);padding-left:18px;line-height:1.75">
       <li>不内嵌 WebView 做登录 —— DeepSeek 登录页有风控，WebView 里大概率过不去，且更容易被判定为异常</li>
       <li>不自动读取浏览器 Cookie —— 那需要抓别的 App 的数据，Android 上不可行也不该做</li>
-      <li>不申请任何新权限</li>
+      <li>不申请与隐私相关的权限（实现阶段因下面的冻结问题新增了 FOREGROUND_SERVICE，属系统能力、不涉及用户数据）</li>
       <li>不引第三方依赖（延续现在的零依赖）</li>
     </ul>
   </div>
@@ -541,6 +541,38 @@
 它<b>随时可能收紧或变更</b>，届时一键登录会失效。
 所以实现上会把它做成「锦上添花」而非唯一路径——手动粘贴那条路必须始终可用。
 这也是为什么态 4 一定要有「改用手动填」这个出口。
+</div>
+
+<h2><span class="n">06·补</span>实现阶段发现的问题：后台进程被冻结</h2>
+<p class="sub">设计稿审阅通过后开始实现，在华为真机上发现一个设计阶段没预见到、且会导致功能完全不可用的问题。</p>
+
+<div class="note bad-note">
+<b>现象：</b>点「用浏览器登录」后浏览器被拉到前台，本应用退到后台。
+此时浏览器带着 code 跳回 <code class="inline">127.0.0.1:PORT</code>，<b>TCP 连得上但没有任何响应</b>——
+因为进程已被系统冻结，accept 循环不再运行。登录必然超时。
+</div>
+
+<table>
+<thead><tr><th style="width:34%">应用状态</th><th style="width:26%">回调服务响应（真机实测）</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>前台</td><td class="ok">404 / 400，正常</td><td>代码本身没问题</td></tr>
+<tr><td>后台（浏览器在前台）</td><td class="no">无响应</td><td>进程冻结 → 校验收不到回调</td></tr>
+<tr><td>后台 + 前台服务保活</td><td class="ok">404 / 400，正常</td><td>修复有效</td></tr>
+</tbody>
+</table>
+
+<div class="note ok-note">
+<b>处理：</b>登录期间挂一个 <code class="inline">LoginKeepAliveService</code>（前台服务，
+类型 <code class="inline">dataSync</code>，IMPORTANCE_MIN 通知），流程结束立即 <code class="inline">stopSelf</code>。
+代价是新增 <code class="inline">FOREGROUND_SERVICE</code> 与 <code class="inline">FOREGROUND_SERVICE_DATA_SYNC</code>
+两个权限——都是系统能力声明，不涉及读取用户数据。
+</div>
+
+<div class="note">
+<b>另一处实现细节：</b>PKCE 的 base64url 一开始用 <code class="inline">android.util.Base64</code>，
+在 JVM 单测里是未实现桩（not mocked），导致 4 条测试直接报错；
+换成 <code class="inline">java.util.Base64</code> 又受 API 26 限制（本工程 minSdk 24）。
+最终自己实现 20 行 base64url，两个问题一起解决，并补了与 python 标准实现逐字节比对的测试。
 </div>
 
 <!-- ============ 7. 工作量 ============ -->

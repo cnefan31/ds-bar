@@ -46,6 +46,46 @@ object DsHttp {
         }
     }
 
+    /** POST JSON。与 [get] 共用超时、错误码与读取上限，避免两套行为漂移。 */
+    fun postJson(
+        url: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+        timeoutMs: Int = 20_000,
+        maxBytes: Int = 16 * 1024 * 1024
+    ): Response {
+        val conn = try {
+            URL(url).openConnection() as HttpURLConnection
+        } catch (t: Throwable) {
+            throw DsException(ERR_FETCH_FAILED, "请求地址无效")
+        }
+        try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.instanceFollowRedirects = true
+            conn.doOutput = true
+            conn.setRequestProperty("Accept", "application/json, */*")
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            headers.forEach { (k, v) -> if (v.isNotBlank()) conn.setRequestProperty(k, v) }
+            val payload = body.toByteArray(Charsets.UTF_8)
+            conn.setFixedLengthStreamingMode(payload.size)
+            conn.outputStream.use { it.write(payload) }
+            val status = conn.responseCode
+            val stream: InputStream? = if (status in 200..299) conn.inputStream else conn.errorStream
+            val bytes = stream?.use { readCapped(it, maxBytes) } ?: ByteArray(0)
+            return Response(status, bytes)
+        } catch (t: DsException) {
+            throw t
+        } catch (t: java.net.SocketTimeoutException) {
+            throw DsException(ERR_TIMEOUT, "请求超时")
+        } catch (t: Throwable) {
+            throw DsException(ERR_FETCH_FAILED, t.message ?: "网络请求失败")
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private fun readCapped(input: InputStream, maxBytes: Int): ByteArray {
         val out = ByteArrayOutputStream()
         val buf = ByteArray(16 * 1024)

@@ -22,6 +22,10 @@
 -keep class com.cnefan.ds_bar.BalanceNotification { *; }
 -keep class com.cnefan.ds_bar.BalanceTileService { *; }
 
+# --- 浏览器登录 ---
+# 三个类都由 MainActivity 直接调用，R8 能正常裁剪与改名，不需要 keep。
+# 唯一注意：PlatformLogin 用构建期字符串拼 URL，不涉及反射查找类名。
+
 # --- JobScheduler ---
 # JobService 由系统按 manifest 里的类名反射实例化，名字不能改。
 -keep class com.cnefan.ds_bar.RefreshJobService { *; }

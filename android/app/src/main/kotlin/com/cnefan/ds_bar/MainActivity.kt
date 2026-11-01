@@ -56,7 +56,11 @@ class MainActivity : FlutterActivity() {
                     if (notify != null) prefs.notifyEnabled = notify
                     if (tile != null) prefs.tileEnabled = tile
                     if (demo != null) prefs.demoMode = demo
-                    if (userToken != null) prefs.userToken = userToken
+                    if (userToken != null) {
+                        prefs.userToken = userToken
+                        // 手动填了就标记为手动方式，界面上不再显示「浏览器授权」。
+                        if (userToken.isNotBlank()) prefs.loginMethod = DsPrefs.LOGIN_MANUAL
+                    }
                     if (cookie != null) prefs.cookie = cookie
 
                     if (prefs.notifyEnabled) {
@@ -97,6 +101,27 @@ class MainActivity : FlutterActivity() {
                     val payload = runCatching { ConnectionProbe.run(applicationContext) }.getOrNull()
                     runOnUiThread { result.success(payload) }
                 }
+                "startBrowserLogin" -> {
+                    // 起本地回调服务并在授权准备好后打开系统浏览器。
+                    // 状态通过 getLoginState 轮询获取，避免依赖 event channel。
+                    val snap = BrowserLogin.start(this) { url ->
+                        runCatching {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        }.onFailure {
+                            BrowserLogin.cancel(applicationContext)
+                        }
+                    }
+                    result.success(BrowserLogin.snapshot(this).let { snapToJson(it) })
+                }
+                "cancelBrowserLogin" -> {
+                    BrowserLogin.cancel(this)
+                    result.success(snapToJson(BrowserLogin.snapshot(this)))
+                }
+                "getLoginState" -> result.success(snapToJson(BrowserLogin.snapshot(this)))
+                "signOutPlatform" -> {
+                    BrowserLogin.signOut(this)
+                    result.success(snapToJson(BrowserLogin.snapshot(this)))
+                }
                 "openQsTileSettings" -> {
                     val ok = runCatching {
                         startActivity(Intent("android.service.quicksettings.action.QS_TILE_SETTINGS"))
@@ -117,6 +142,18 @@ class MainActivity : FlutterActivity() {
         if (prefs.notifyEnabled) {
             BalanceNotification.updateFromCache(this, prefs)
         }
+    }
+
+    private fun snapToJson(s: BrowserLogin.Snapshot): String {
+        return org.json.JSONObject()
+            .put("phase", s.phase)
+            .put("authorizeUrl", s.authorizeUrl ?: "")
+            .put("expiresAt", s.expiresAt)
+            .put("accountHint", s.accountHint ?: "")
+            .put("errorCode", s.errorCode ?: "")
+            .put("errorMessage", s.errorMessage ?: "")
+            .put("loginMethod", s.loginMethod)
+            .toString()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

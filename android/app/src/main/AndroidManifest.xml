@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 浏览器授权期间保活：后台进程被冻结会让本地回调服务失去响应 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
 
     <application
         android:label="ds-bar"
@@ -26,6 +29,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- 浏览器登录期间保活，避免后台进程被冻结导致回调无响应 -->
+        <service
+            android:name=".LoginKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
 
         <!-- 后台定时刷新（平台 JobScheduler，替代 WorkManager） -->
         <service

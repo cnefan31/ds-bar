@@ -53,12 +53,31 @@ DeepSeek 官方公开 API 只有余额与模型列表，没有按时间或按 ke
 
 ### 获取 userToken
 
+**推荐：一键浏览器登录。** 设置 → 平台会话 → 「用浏览器登录」，
+跳到系统浏览器完成授权后自动回到 App 并配好，不需要手动复制。
+
+若浏览器登录不可用，仍可手动填：
+
 1. 浏览器登录 <https://platform.deepseek.com>；
 2. F12 → Application → Local Storage → `https://platform.deepseek.com`；
 3. 复制 `userToken` 的值（形如 `{"value":"..."}` 时取 `value` 字段）；
-4. 粘贴到 App「设置 → 平台 userToken」。
+4. 粘贴到 App「设置 → 手动填 userToken」。
 
-若接口返回非 JSON 或 401，补上同域 `Cookie` 再试。userToken 会过期，过期后重新复制。
+若接口返回非 JSON 或 401，补上同域 `Cookie` 再试。userToken 会过期，过期后重新登录或重新复制。
+
+#### 一键登录的实现要点
+
+平台授权接口 `POST /auth-api/v0/dsh/auth_init` 与 `/auth_exchange`（DSH 桌面客户端在用，
+非公开第三方 API），授权码 + PKCE（强制 S256）。`redirect_uri` **只接受
+`http://127.0.0.1:PORT/oauth/callback`**——自定义 scheme 与外部域名都被拒，
+所以协议要求由 App 自己起一个只绑环回地址的一次性 HTTP 服务接回调。
+
+两个实际踩到的坑，都已固化：
+
+| 坑 | 现象 | 处理 |
+| --- | --- | --- |
+| 后台进程被冻结 | 点登录后浏览器到前台，本应用退到后台；浏览器跳回 `127.0.0.1` 连得上但**没人应答**，登录必然超时（华为 EMUI 实测） | 登录期间挂 `LoginKeepAliveService` 前台服务保活，结束即停 |
+| JVM 单测里 `android.util.Base64` 是未实现桩 | PKCE 相关单测全部 `not mocked` 报错 | 自己实现 base64url（也避开 `java.util.Base64` 的 API 26 要求，本工程 minSdk 24） |
 
 ## 安全
 
@@ -66,6 +85,8 @@ DeepSeek 官方公开 API 只有余额与模型列表，没有按时间或按 ke
 - 所有请求由手机直连 `deepseek.com`，无中转。
 - 凭据明文不进入 Dart 层缓存；界面只显示「已配置 / 未配置」与打码后的 key。
 - 通知栏与磁贴只显示金额与 token 数，不显示 key。
+- 浏览器登录的本地回调服务**只绑 `127.0.0.1`**、端口随机、只处理一个请求、回完即关；
+  回调必须带本次生成的一次性 `state`（定长比较），否则拒收；`state` 不写日志。
 
 ## 架构
 
@@ -185,7 +206,7 @@ Kotlin 侧不接受任何 `implementation(...)`，`RefreshJobServiceTest` 会守
 
 1. 进「设置」；
 2. 「API Keys」添加至少一个 `sk-` key，名称建议与平台侧一致；
-3. 「平台 userToken」填入 userToken 并保存；
+3. 「平台会话」点「用浏览器登录」完成授权（或展开「手动填 userToken」直接粘贴）；
 4. 回「概览」下拉刷新，或点右上角同步；
 5. 需要通知栏余额：打开「通知栏常驻余额」，按系统提示授予通知权限；
 6. 需要磁贴：打开「快速设置磁贴」，点「添加到快捷面板」把 DeepSeek 余额拖入面板。
