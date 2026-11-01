@@ -19,6 +19,10 @@ class DsRepository(private val context: Context) {
 
     private val prefs = DsPrefs(context)
 
+    private val platformBase = "https://platform.deepseek.com"
+    private val summaryUrl = "$platformBase/api/v0/users/get_user_summary"
+    private val apiKeysUrl = "$platformBase/api/v0/users/get_api_keys"
+
     fun snapshotJson(): JSONObject? = prefs.cachedSnapshot?.let {
         runCatching { JSONObject(it) }.getOrNull()
     }
@@ -83,6 +87,32 @@ class DsRepository(private val context: Context) {
             root.put("balanceError", keyError ?: JSONObject().put("code", DsHttp.ERR_AUTH_FAILED).put("message", "余额获取失败"))
         }
 
+        // ---- 浏览器登录后：用平台账户摘要补余额（不需要 API Key） ----
+        // 官方 /user/balance 需要 sk- 密钥；平台摘要只要登录态，两条路互不阻塞。
+        if (prefs.userToken.isNotBlank()) {
+            if (!root.has("balance") || root.optJSONObject("balance") == null) {
+                try {
+                    root.put("balance", fetchPlatformSummary())
+                    root.remove("balanceError")
+                    root.put("balanceSource", "platform")
+                } catch (e: DsException) {
+                    // 平台摘要失败不覆盖官方接口的结论
+                    if (!root.has("balanceError")) {
+                        root.put("balanceError", JSONObject().put("code", e.code).put("message", e.message ?: ""))
+                    }
+                }
+            } else {
+                root.put("balanceSource", "official")
+            }
+
+            // ---- 平台 Key 列表：登录后自动发现，不需要逐个手输 ----
+            try {
+                root.put("platformKeys", fetchPlatformKeys())
+            } catch (e: DsException) {
+                root.put("platformKeysError", JSONObject().put("code", e.code).put("message", e.message ?: ""))
+            }
+        }
+
         // ---- 用量（平台会话） ----
         val token = prefs.userToken
         if (token.isBlank()) {
@@ -95,6 +125,85 @@ class DsRepository(private val context: Context) {
             }
         }
         return root
+    }
+
+    // ---------- 平台账户摘要（登录态即可，无需 API Key） ----------
+
+    /**
+     * GET /api/v0/users/get_user_summary → 归一成与官方余额相同的结构。
+     *
+     * 字段（实测）：normal_wallets[]{currency,balance} 为充值余额，
+     * bonus_wallets[]{currency,balance} 为赠送余额，total_costs[]{currency,amount} 为累计消费。
+     * 归一后 UI / 通知 / 磁贴无需区分来源。
+     */
+    private fun fetchPlatformSummary(): JSONObject {
+        val res = platformGet(summaryUrl)
+        val biz = unwrapBiz(res, "账户摘要")
+        val normal = biz.optJSONArray("normal_wallets")
+        val bonus = biz.optJSONArray("bonus_wallets")
+        val currency = (normal?.optJSONObject(0) ?: bonus?.optJSONObject(0))
+            ?.optString("currency")
+            ?.ifBlank { "CNY" } ?: "CNY"
+        val topped = normal?.optJSONObject(0)?.optDouble("balance", 0.0) ?: 0.0
+        val granted = bonus?.optJSONObject(0)?.optDouble("balance", 0.0) ?: 0.0
+        val total = topped + granted
+
+        val cost = biz.optJSONArray("total_costs")?.optJSONObject(0)?.optDouble("amount", 0.0) ?: 0.0
+        val infos = JSONArray().put(
+            JSONObject()
+                .put("currency", currency)
+                .put("totalBalance", total)
+                .put("grantedBalance", granted)
+                .put("toppedUpBalance", topped)
+        )
+        return JSONObject()
+            .put("isAvailable", total > 0.0)
+            .put("infos", infos)
+            .put("totalCost", cost)
+    }
+
+    // ---------- 平台 API Key 列表 ----------
+
+    /**
+     * GET /api/v0/users/get_api_keys → 账号下全部 key。
+     *
+     * 注意：平台**不返回 key 明文**（只有 sensitive_id 打码值与 tracking_id），
+     * 所以这些 key 不能拿去调官方余额接口，只能用于展示与对照用量。
+     */
+    private fun fetchPlatformKeys(): JSONArray {
+        val res = platformGet(apiKeysUrl)
+        val biz = unwrapBiz(res, "Key 列表")
+        val arr = biz.optJSONArray("api_keys") ?: JSONArray()
+        val out = JSONArray()
+        val quota = biz.optJSONObject("key_quota")?.optJSONObject("total")
+        for (i in 0 until arr.length()) {
+            val k = arr.optJSONObject(i) ?: continue
+            out.put(
+                JSONObject()
+                    .put("name", k.optString("name"))
+                    .put("masked", k.optString("sensitive_id"))
+                    .put("trackingId", k.optString("tracking_id"))
+                    .put("keyType", k.optString("key_type"))
+                    .put("createdAt", k.optLong("created_at", 0L))
+                    .put("lastUse", k.optLong("last_use", 0L))
+                    .put("quotaUsed", quota?.optDouble("used", 0.0) ?: 0.0)
+                    .put("quotaLimit", quota?.optDouble("limit", 0.0) ?: 0.0)
+            )
+        }
+        return out
+    }
+
+    /** 平台统一信封：{code,msg,data{biz_code,biz_msg,biz_data}}。 */
+    private fun unwrapBiz(res: DsHttp.Response, what: String): JSONObject {
+        val json = runCatching { JSONObject(res.text) }.getOrElse {
+            throw DsException(DsHttp.ERR_PLATFORM_FAILED, "${what}返回非 JSON")
+        }
+        val code = json.optInt("code", -1)
+        if (code != 0) throw DsException(DsHttp.ERR_PLATFORM_FAILED, "${what}失败：${json.optString("msg").ifBlank { "code=$code" }}")
+        val data = json.optJSONObject("data") ?: throw DsException(DsHttp.ERR_PLATFORM_FAILED, "${what}缺少 data")
+        val bizCode = data.optInt("biz_code", -1)
+        if (bizCode != 0) throw DsException(DsHttp.ERR_PLATFORM_FAILED, "${what}失败：${data.optString("biz_msg").ifBlank { "biz_code=$bizCode" }}")
+        return data.optJSONObject("biz_data") ?: throw DsException(DsHttp.ERR_PLATFORM_FAILED, "${what}缺少 biz_data")
     }
 
     // ---------- 官方余额 ----------
@@ -126,9 +235,16 @@ class DsRepository(private val context: Context) {
 
     // ---------- 平台用量 ----------
 
-    private fun platformHeaders(): Map<String, String> {
+    /**
+     * 平台请求头。
+     *
+     * 两种登录态用两种鉴权头，混用会得到 HTTP 200 + code=40003
+     * （"Authorization Failed (invalid token)"），看起来像成功、实际全空：
+     *  - 手动粘贴的网页 userToken → Authorization: Bearer
+     *  - 浏览器授权拿到的账号 grant → x-dsh-auth-token（平台内部接口的约定）
+     */
+    internal fun platformHeaders(): Map<String, String> {
         val headers = mutableMapOf(
-            "Authorization" to "Bearer ${prefs.userToken}",
             "User-Agent" to UA,
             "Referer" to "https://platform.deepseek.com/usage",
             "x-client-locale" to "zh_CN",
@@ -136,12 +252,21 @@ class DsRepository(private val context: Context) {
             "x-client-version" to "1.0.0",
             "x-client-timezone-offset" to "28800"
         )
+        if (prefs.loginMethod == DsPrefs.LOGIN_BROWSER) {
+            headers["x-dsh-auth-token"] = prefs.userToken
+        } else {
+            headers["Authorization"] = "Bearer ${prefs.userToken}"
+        }
         if (prefs.cookie.isNotBlank()) headers["Cookie"] = prefs.cookie
         return headers
     }
 
     private fun platformGet(url: String): DsHttp.Response {
         val res = DsHttp.get(url, platformHeaders())
+        android.util.Log.i(
+            "DsBarRefresh",
+            "platform GET ${url.substringAfter("deepseek.com")} -> ${res.status} cookie=${prefs.cookie.isNotBlank()} len=${res.body.size}"
+        )
         when (res.status) {
             401, 403 -> throw DsException(DsHttp.ERR_PLATFORM_AUTH, "平台 userToken 无效或已过期", res.status)
             429 -> throw DsException(DsHttp.ERR_PLATFORM_RATE_LIMITED, "平台接口限流，稍后再试", res.status)

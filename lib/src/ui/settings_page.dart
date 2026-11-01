@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../format.dart';
 import '../native_bridge.dart';
 import '../theme.dart';
 import 'common.dart';
@@ -291,6 +292,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         _keyList(config),
+        _platformKeysSection(),
         const SectionHeader('刷新'),
         _refreshSection(config),
         const SectionHeader('通知与磁贴'),
@@ -316,11 +318,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final balanceIssue = snapshot?.balanceError;
     final usageIssue = snapshot?.usageError;
 
+    // 余额有两条路：官方接口（需 API Key）与平台账户摘要（登录态即可）。
+    // 所以判断依据必须是「有没有拿到余额」，而不是「有没有填 API Key」。
+    final platformBalance = snapshot?.balanceSource == 'platform';
     String balanceText;
-    if (!config.keys.isNotEmpty) {
+    if (balanceOk) {
+      balanceText = platformBalance
+          ? '已连接 · 平台账户'
+          : '已连接 · ${config.keys.length} 个 Key';
+    } else if (config.keys.isEmpty && !config.userTokenSet) {
       balanceText = '未添加 API Key';
-    } else if (balanceOk) {
-      balanceText = '已连接 · ${config.keys.length} 个 Key';
     } else {
       balanceText = balanceIssue?.hint ?? '获取失败';
     }
@@ -345,7 +352,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: StatusDot(
                   color: balanceOk
                       ? DsColors.success
-                      : (config.keys.isEmpty ? DsColors.inkTertiary : DsColors.danger),
+                      : (config.keys.isEmpty && !config.userTokenSet
+                          ? DsColors.inkTertiary
+                          : DsColors.danger),
                 ),
                 title: '余额',
                 sub: balanceText,
@@ -371,7 +380,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-        const DsHint('余额用官方 API，只需 API Key；用量走平台网页接口，需要 userToken。两者互不影响。'),
+        const DsHint('浏览器授权后，余额、用量与 Key 列表都走平台账号，无需 API Key；'
+            '手动填 userToken 或添加 API Key 是备用路径，两者互不影响。'),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -669,6 +679,50 @@ class _SettingsPageState extends State<SettingsPage> {
         const DsHint('余额是账户级，同账号所有 Key 共用一个余额；分开填只是便于按 Key 对账。'),
       ],
     );
+  }
+
+  /// 平台侧自动发现的 Key 列表（浏览器登录后才有）。
+  ///
+  /// 平台不返回明文密钥，所以这里只做展示：名称、打码值、最后使用时间。
+  /// 想用它查余额仍需在平台上另建 key 再填到上面——但登录态本身已经能拿余额，
+  /// 所以多数时候不需要。
+  Widget _platformKeysSection() {
+    final snapshot = widget.state.snapshot;
+    final keys = snapshot?.platformKeys ?? const <PlatformKey>[];
+    if (keys.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader('平台 Key', note: '登录后自动同步'),
+        DsPanel(
+          child: Column(
+            children: [
+              for (var i = 0; i < keys.length; i++) ...[
+                if (i > 0) const Hairline(indent: 12, endIndent: 12),
+                DsRow(
+                  leading: StatusDot(color: DsColors.primary),
+                  title: keys[i].name.isEmpty ? '（未命名）' : keys[i].name,
+                  sub: _platformKeySub(keys[i]),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const DsHint('这些 Key 直接来自 DeepSeek 账号，只读。平台不提供明文密钥，故不能用于官方余额接口。'),
+      ],
+    );
+  }
+
+  String _platformKeySub(PlatformKey k) {
+    final parts = <String>[];
+    if (k.masked.isNotEmpty) parts.add(k.masked);
+    if (k.lastUse != null) {
+      parts.add('最后使用 ${Fmt.relativeTime(k.lastUse!)}');
+    } else {
+      parts.add('从未使用');
+    }
+    return parts.join(' · ');
   }
 
   Widget _refreshSection(AppConfig config) {

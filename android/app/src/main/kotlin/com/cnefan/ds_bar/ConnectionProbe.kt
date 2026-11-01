@@ -54,7 +54,13 @@ object ConnectionProbe {
                 Item("platform", "平台 userToken", false, "未配置", DsHttp.ERR_MISSING_CREDENTIAL).toJson()
             )
         } else {
-            items.put(probePlatform(prefs))
+            items.put(probePlatform(prefs, context))
+        }
+
+        // 3. 浏览器登录拿到的 token 类型未知：分别用两种鉴权头试同一接口，
+        //    以及平台可能存在的 key 列表接口，用来判定这个 token 能做什么。
+        if (token.isNotBlank()) {
+            probeTokenCapabilities(prefs).forEach { items.put(it) }
         }
 
         val payload = JSONObject()
@@ -64,6 +70,74 @@ object ConnectionProbe {
         val allOk = (0 until items.length()).all { items.getJSONObject(it).getBoolean("ok") }
         payload.put("allOk", allOk)
         return payload.toString()
+    }
+
+    /** 只做只读 GET，逐一试探 token 的可用范围；结果只有状态码，不含凭据。 */
+    private fun probeTokenCapabilities(prefs: DsPrefs): List<JSONObject> {
+        val now = java.util.Calendar.getInstance()
+        val usageUrl = DsRepository.USAGE_AMOUNT_URL +
+            "?month=" + (now.get(java.util.Calendar.MONTH) + 1) +
+            "&year=" + now.get(java.util.Calendar.YEAR)
+        val token = prefs.userToken
+        val base = mapOf(
+            "User-Agent" to DsRepository.UA,
+            "Referer" to "https://platform.deepseek.com/usage",
+            "x-client-locale" to "zh_CN",
+            "x-client-platform" to "web",
+            "x-client-version" to "1.0.0"
+        )
+        val out = mutableListOf<JSONObject>()
+
+        fun probe(target: String, label: String, url: String, extra: Map<String, String>) {
+            val headers = base + extra
+            out.add(
+                try {
+                    val res = DsHttp.get(url, headers)
+                    // 必须校验业务码：平台会用 HTTP 200 + {"code":40003} 表示鉴权失败，
+                    // 只看状态码会把它当成功（之前就因此误判过）。
+                    val json = runCatching { JSONObject(res.text) }.getOrNull()
+                    val bizCode = json?.optInt("code", -1)
+                    val ok = res.status == 200 && bizCode == 0
+                    val detail = when {
+                        res.status != 200 -> "HTTP ${res.status}"
+                        json == null -> "200 非JSON"
+                        else -> "200 code=$bizCode"
+                    }
+                    Item(
+                        target, label, ok, detail,
+                        if (ok) "" else "probe_${res.status}_$bizCode"
+                    ).toJson()
+                } catch (e: DsException) {
+                    Item(target, label, false, e.message ?: "请求失败", e.code).toJson()
+                } catch (t: Throwable) {
+                    Item(target, label, false, t.message ?: "请求失败", DsHttp.ERR_FETCH_FAILED).toJson()
+                }
+            )
+        }
+
+        probe("bearerUsage", "用量 · Bearer 头", usageUrl, mapOf("Authorization" to "Bearer $token"))
+        probe("dshUsage", "用量 · x-dsh-auth-token", usageUrl, mapOf("x-dsh-auth-token" to token))
+        probe(
+            "dshSummary", "账户摘要 · x-dsh-auth-token",
+            "https://platform.deepseek.com/api/v0/users/get_user_summary",
+            mapOf("x-dsh-auth-token" to token)
+        )
+        probe(
+            "dshProfile", "账户资料 · x-dsh-auth-token",
+            "https://platform.deepseek.com/auth-api/v0/users/current",
+            mapOf("x-dsh-auth-token" to token)
+        )
+        probe(
+            "keysList", "Key 列表 · x-dsh-auth-token",
+            "https://platform.deepseek.com/api/v0/users/get_api_keys",
+            mapOf("x-dsh-auth-token" to token)
+        )
+        probe(
+            "keysListBearer", "Key 列表 · Bearer 头",
+            "https://platform.deepseek.com/api/v0/users/get_api_keys",
+            mapOf("Authorization" to "Bearer $token")
+        )
+        return out
     }
 
     private fun probeApiKey(key: ApiKeyEntry): JSONObject {
@@ -98,21 +172,14 @@ object ConnectionProbe {
         }
     }
 
-    private fun probePlatform(prefs: DsPrefs): JSONObject {
+    private fun probePlatform(prefs: DsPrefs, context: Context): JSONObject {
         val now = java.util.Calendar.getInstance()
         val url = DsRepository.USAGE_AMOUNT_URL +
             "?month=" + (now.get(java.util.Calendar.MONTH) + 1) +
             "&year=" + now.get(java.util.Calendar.YEAR)
 
-        val headers = mutableMapOf(
-            "Authorization" to "Bearer ${prefs.userToken}",
-            "User-Agent" to DsRepository.UA,
-            "Referer" to "https://platform.deepseek.com/usage",
-            "x-client-locale" to "zh_CN",
-            "x-client-platform" to "web",
-            "x-client-version" to "1.0.0"
-        )
-        if (prefs.cookie.isNotBlank()) headers["Cookie"] = prefs.cookie
+        // 鉴权头随登录方式而变，直接复用仓库的实现，避免两处判断不一致。
+        val headers = DsRepository(context).platformHeaders()
 
         return try {
             val res = DsHttp.get(url, headers)

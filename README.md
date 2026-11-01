@@ -25,10 +25,10 @@ adb install -r app-arm64-v8a-release.apk
 
 | 模块 | 内容 |
 | --- | --- |
-| 账户余额 | 官方 `GET /user/balance`：总余额、充值、赠送、可用状态 |
+| 账户余额 | 登录后走平台账户摘要（充值 + 赠送）；也可用官方 `GET /user/balance`（需 API Key） |
 | 今日用量 | 消费、token、请求次数，缓存命中/未命中/输出构成条 |
 | 本月用量 | 逐日柱状图 + 合计 |
-| 按 API Key | 每个 key 的本月消费、token、请求与今日消费 |
+| 按 API Key | 每个 key 的本月消费、token、请求与今日消费；登录后自动发现账号下全部 Key |
 | 按模型 | 每个模型的 token 占比、消费、缓存命中率 |
 | Key 状态 | 每个已配置 key 的有效性校验（打码展示） |
 | 通知栏 | 常驻通知：余额 + 今日消费 + 本月消费（无操作按钮，点卡进 App） |
@@ -43,6 +43,8 @@ adb install -r app-arm64-v8a-release.apk
 | 本月用量 / 消费 | `https://platform.deepseek.com/api/v0/usage/amount`、`usage/cost` | 平台 userToken | 网页私有接口，可能变更 |
 | 今日用量 | `https://platform.deepseek.com/api/v0/usage/export`（本地时区窗口） | 平台 userToken | 同上 |
 | 分 key 明细 | `https://platform.deepseek.com/api/v0/usage/export`（本月 CSV） | 平台 userToken | 同上 |
+| 余额（登录态） | `https://platform.deepseek.com/api/v0/users/get_user_summary` | `x-dsh-auth-token` | 平台内部接口 |
+| Key 列表 | `https://platform.deepseek.com/api/v0/users/get_api_keys` | `x-dsh-auth-token` | 平台内部接口 |
 
 DeepSeek 官方公开 API 只有余额与模型列表，没有按时间或按 key 的 token 用量接口。因此：
 
@@ -78,6 +80,8 @@ DeepSeek 官方公开 API 只有余额与模型列表，没有按时间或按 ke
 | --- | --- | --- |
 | 后台进程被冻结 | 点登录后浏览器到前台，本应用退到后台；浏览器跳回 `127.0.0.1` 连得上但**没人应答**，登录必然超时（华为 EMUI 实测） | 登录期间挂 `LoginKeepAliveService` 前台服务保活，结束即停 |
 | JVM 单测里 `android.util.Base64` 是未实现桩 | PKCE 相关单测全部 `not mocked` 报错 | 自己实现 base64url（也避开 `java.util.Base64` 的 API 26 要求，本工程 minSdk 24） |
+| 鉴权头用错 | 登录显示「已连接」，但余额与用量全空、Key 列表不出现 | 平台返回 **HTTP 200 + `{"code":40003,"msg":"Authorization Failed (invalid token)"}`**，状态码看不出问题。浏览器 grant 必须用 `x-dsh-auth-token` 头，手动粘贴的网页 userToken 才用 `Authorization: Bearer`。`PlatformAuthHeaderTest` 锁住这条 |
+| 探针只看状态码 | 「测试连接」全部显示 200，实际全失败 | 平台用 200 承载错误码，必须校验响应体里的 `code == 0` |
 
 ## 安全
 

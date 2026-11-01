@@ -270,6 +270,13 @@ class Snapshot {
   final ApiIssue? usageError;
   final List<KeyCheck> keyChecks;
 
+  /// 平台账号下的全部 API Key（浏览器登录后自动发现）。
+  /// 平台不返回明文，故这些 key 只用于展示与对照，不能拿去调官方余额接口。
+  final List<PlatformKey> platformKeys;
+
+  /// balance 的来源：official（API Key 调官方接口）或 platform（登录态账户摘要）。
+  final String balanceSource;
+
   const Snapshot({
     this.version = 1,
     this.fetchedAt,
@@ -280,6 +287,8 @@ class Snapshot {
     this.usage,
     this.usageError,
     this.keyChecks = const [],
+    this.platformKeys = const [],
+    this.balanceSource = '',
   });
 
   static Snapshot? fromJson(dynamic raw) {
@@ -296,6 +305,8 @@ class Snapshot {
       usage: Usage.fromJson(json['usage']),
       usageError: ApiIssue.fromJson(json['usageError']),
       keyChecks: Json.list(json['keyChecks']).map(KeyCheck.fromJson).toList(),
+      platformKeys: Json.list(json['platformKeys']).map(PlatformKey.fromJson).toList(),
+      balanceSource: Json.str(json['balanceSource']),
     );
   }
 }
@@ -525,5 +536,50 @@ class LoginSnapshot {
     if (expiresAt <= 0) return 0;
     final ms = expiresAt - now.millisecondsSinceEpoch;
     return ms <= 0 ? 0 : (ms / 1000).floor();
+  }
+}
+
+/// 平台侧的 API Key。字段与 GET /api/v0/users/get_api_keys 实测结构一致。
+///
+/// 平台只给 sensitive_id（打码值）与 tracking_id，**不返回明文密钥**，
+/// 因此这类 key 无法用于官方 /user/balance，只能展示与对照用量。
+class PlatformKey {
+  final String name;
+  final String masked;
+  final String trackingId;
+  final String keyType;
+  final DateTime? createdAt;
+  final DateTime? lastUse;
+  final double quotaUsed;
+  final double quotaLimit;
+
+  const PlatformKey({
+    this.name = '',
+    this.masked = '',
+    this.trackingId = '',
+    this.keyType = '',
+    this.createdAt,
+    this.lastUse,
+    this.quotaUsed = 0,
+    this.quotaLimit = 0,
+  });
+
+  factory PlatformKey.fromJson(dynamic raw) {
+    final json = Json.map(raw) ?? const {};
+    DateTime? ts(String key) {
+      final v = Json.intOr(json[key]);
+      return v > 0 ? DateTime.fromMillisecondsSinceEpoch(v) : null;
+    }
+
+    return PlatformKey(
+      name: Json.str(json['name']),
+      masked: Json.str(json['masked']),
+      trackingId: Json.str(json['trackingId']),
+      keyType: Json.str(json['keyType']),
+      createdAt: ts('createdAt'),
+      lastUse: ts('lastUse'),
+      quotaUsed: Json.numOr(json['quotaUsed']),
+      quotaLimit: Json.numOr(json['quotaLimit']),
+    );
   }
 }
