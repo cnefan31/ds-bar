@@ -142,7 +142,7 @@ bash scripts/build-release.sh universal         # 发布包：三架构合一的
   | --- | --- | --- |
   | `app-arm64-v8a-release.apk` | 7.2MB | 绝大多数真机 |
   | `app-armeabi-v7a-release.apk` | 6.6MB | 32 位老机型 |
-  | `app-x86_64-release.apk` | 7.3MB | 模拟器 |
+  | `app-x86_64-release.apk` | 7.4MB | 模拟器 |
 
 - `universal` 模式产出三架构合一的单包（约 21.2MB），任意设备直接装，分发最省事，
   代价是体积是分包的三倍。
